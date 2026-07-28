@@ -1,0 +1,37 @@
+# ─── Dependencies ────────────────────────────────────────────
+node_modules/
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+
+# ─── Build Outputs ───────────────────────────────────────────
+dist/
+build/
+*.js.map
+
+# ─── IDE ─────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# ─── Flutter ─────────────────────────────────────────────────
+roadmesh-app/android/
+roadmesh-app/ios/
+roadmesh-app/macos/
+roadmesh-app/windows/
+roadmesh-app/linux/
+roadmesh-app/web/
+roadmesh-app/.flutter-plugins
+roadmesh-app/.flutter-plugins-dependencies
+
+# ─── PlatformIO ──────────────────────────────────────────────
+roadmesh-node/.pio/
+roadmesh-node/.vscode/
+
+# ─── Environment ─────────────────────────────────────────────
+.env
+.env.local
+*.log
