@@ -1,11 +1,17 @@
-// ─── Driving Status Bar Widget ──────────────────────────────────────────────
+// ─── Driving Status Bar Widget ───────────────────────────────────────────────
 //
-// Top bar showing connection status, speed, heading, and nearby vehicle count.
+// Glassmorphic floating pill showing:
+// - Connection status dot (pulsing green/red)
+// - Current speed (large Orbitron number)
+// - Heading compass
+// - Nearby vehicle count badge
 
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../models/alert.dart';
+import '../theme/app_colors.dart';
 
-class DrivingStatusBar extends StatelessWidget {
+class DrivingStatusBar extends StatefulWidget {
   final bool isConnected;
   final double speed;
   final double heading;
@@ -21,138 +27,230 @@ class DrivingStatusBar extends StatelessWidget {
     required this.riskLevel,
   });
 
-  String _headingToCompass(double heading) {
-    if (heading >= 337.5 || heading < 22.5) return 'N';
-    if (heading >= 22.5 && heading < 67.5) return 'NE';
-    if (heading >= 67.5 && heading < 112.5) return 'E';
-    if (heading >= 112.5 && heading < 157.5) return 'SE';
-    if (heading >= 157.5 && heading < 202.5) return 'S';
-    if (heading >= 202.5 && heading < 247.5) return 'SW';
-    if (heading >= 247.5 && heading < 292.5) return 'W';
-    return 'NW';
+  @override
+  State<DrivingStatusBar> createState() => _DrivingStatusBarState();
+}
+
+class _DrivingStatusBarState extends State<DrivingStatusBar>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _dotController;
+  late Animation<double> _dotAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _dotController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+    _dotAnim = Tween<double>(begin: 0.3, end: 1.0).animate(
+      CurvedAnimation(parent: _dotController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _dotController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xE60A0E1A),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: riskLevel.color.withOpacity(0.3),
-          width: 1,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(18),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            color: AppColors.surface.withValues(alpha: 0.85),
+            border: Border.all(color: AppColors.glassBorder),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.4),
+                blurRadius: 20,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              // ─── Connection dot ─────────────────────────────────────────────
+              AnimatedBuilder(
+                animation: _dotAnim,
+                builder: (_, __) => Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: widget.isConnected
+                        ? AppColors.safeGreen.withValues(alpha: _dotAnim.value)
+                        : AppColors.dangerRed.withValues(alpha: _dotAnim.value),
+                    boxShadow: [
+                      BoxShadow(
+                        color: (widget.isConnected
+                                ? AppColors.safeGreen
+                                : AppColors.dangerRed)
+                            .withValues(alpha: 0.6),
+                        blurRadius: 6,
+                        spreadRadius: 0,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(width: 8),
+              Text(
+                widget.isConnected ? 'LIVE' : 'OFFLINE',
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  color: widget.isConnected ? AppColors.safeGreen : AppColors.dangerRed,
+                  letterSpacing: 1.5,
+                ),
+              ),
+
+              const SizedBox(width: 12),
+              Container(width: 1, height: 20, color: AppColors.glassBorder),
+              const SizedBox(width: 12),
+
+              // ─── Speed ───────────────────────────────────────────────────────
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    widget.speed.toStringAsFixed(0),
+                    style: const TextStyle(
+                      fontFamily: 'Orbitron',
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                      height: 1,
+                    ),
+                  ),
+                  const SizedBox(width: 3),
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 2),
+                    child: Text(
+                      'km/h',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: AppColors.textMuted,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const Spacer(),
+
+              // ─── Compass heading ─────────────────────────────────────────────
+              _CompassBadge(heading: widget.heading),
+
+              const SizedBox(width: 10),
+
+              // ─── Nearby count badge ──────────────────────────────────────────
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: widget.nearbyCount > 0
+                      ? AppColors.cyberBlue.withValues(alpha: 0.15)
+                      : AppColors.glassWhite,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: widget.nearbyCount > 0
+                        ? AppColors.cyberBlue.withValues(alpha: 0.4)
+                        : AppColors.glassBorder,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.directions_car_rounded,
+                      size: 12,
+                      color: widget.nearbyCount > 0
+                          ? AppColors.cyberBlue
+                          : AppColors.textMuted,
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      '${widget.nearbyCount}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: widget.nearbyCount > 0
+                            ? AppColors.cyberBlue
+                            : AppColors.textMuted,
+                        fontFamily: 'Orbitron',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
-      child: Row(
+    );
+  }
+}
+
+// ─── Compass Badge ────────────────────────────────────────────────────────────
+
+class _CompassBadge extends StatelessWidget {
+  final double heading;
+
+  const _CompassBadge({required this.heading});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: AppColors.glassWhite,
+        border: Border.all(color: AppColors.glassBorder),
+      ),
+      child: Stack(
+        alignment: Alignment.center,
         children: [
-          // Connection indicator
+          // Compass needle
+          Transform.rotate(
+            angle: heading * (3.14159 / 180),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 2,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: AppColors.dangerRed,
+                    borderRadius: BorderRadius.circular(1),
+                  ),
+                ),
+                Container(
+                  width: 2,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: AppColors.textMuted,
+                    borderRadius: BorderRadius.circular(1),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Center dot
           Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
+            width: 4,
+            height: 4,
+            decoration: const BoxDecoration(
               shape: BoxShape.circle,
-              color: isConnected
-                  ? const Color(0xFF4CAF50)
-                  : const Color(0xFFF44336),
-              boxShadow: [
-                BoxShadow(
-                  color: (isConnected
-                          ? const Color(0xFF4CAF50)
-                          : const Color(0xFFF44336))
-                      .withOpacity(0.5),
-                  blurRadius: 6,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-
-          // Speed
-          Text(
-            '${speed.toStringAsFixed(0)}',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          Text(
-            ' km/h',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.5),
-              fontSize: 11,
-            ),
-          ),
-
-          const Spacer(),
-
-          // Heading
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.navigation,
-                  color: const Color(0xFF00E5FF),
-                  size: 14,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  _headingToCompass(heading),
-                  style: const TextStyle(
-                    color: Color(0xFF00E5FF),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(width: 10),
-
-          // Nearby count
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: nearbyCount > 0
-                  ? riskLevel.color.withOpacity(0.15)
-                  : Colors.white.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.directions_car,
-                  color: nearbyCount > 0
-                      ? riskLevel.color
-                      : Colors.white.withOpacity(0.5),
-                  size: 14,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  '$nearbyCount',
-                  style: TextStyle(
-                    color: nearbyCount > 0
-                        ? riskLevel.color
-                        : Colors.white.withOpacity(0.5),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
+              color: AppColors.textPrimary,
             ),
           ),
         ],

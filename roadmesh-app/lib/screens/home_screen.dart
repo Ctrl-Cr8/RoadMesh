@@ -1,12 +1,20 @@
-// ─── Home Screen ────────────────────────────────────────────────────────────
+// ─── Home Screen ─────────────────────────────────────────────────────────────
 //
-// Landing screen with RoadMesh branding, vehicle type selector, and
-// server settings. Premium dark UI with gradient accents.
+// Premium dark landing screen with:
+// - Animated mesh particle background
+// - Glassmorphism cards
+// - Orbitron-font logo with neon glow
+// - Animated vehicle type selector
+// - Glassmorphic server input
+// - Pulsing gradient CTA button
 
+import 'dart:math' as math;
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/driving_provider.dart';
 import '../models/vehicle.dart';
+import '../theme/app_colors.dart';
 import 'driving_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -16,21 +24,43 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen>
+    with TickerProviderStateMixin {
   final TextEditingController _serverController = TextEditingController();
+
   late AnimationController _pulseController;
-  late Animation<double> _pulseAnimation;
+  late AnimationController _meshController;
+  late AnimationController _glowController;
+
+  late Animation<double> _pulseAnim;
+  late Animation<double> _glowAnim;
 
   @override
   void initState() {
     super.initState();
     _serverController.text = 'ws://10.0.2.2:3000/ws';
+
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
-    _pulseAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+
+    _meshController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 20),
+    )..repeat();
+
+    _glowController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat(reverse: true);
+
+    _pulseAnim = Tween<double>(begin: 0.92, end: 1.0).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+
+    _glowAnim = Tween<double>(begin: 0.4, end: 1.0).animate(
+      CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
     );
   }
 
@@ -38,6 +68,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   void dispose() {
     _serverController.dispose();
     _pulseController.dispose();
+    _meshController.dispose();
+    _glowController.dispose();
     super.dispose();
   }
 
@@ -49,15 +81,33 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       await provider.startDriving();
       if (mounted) {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const DrivingScreen()),
+          PageRouteBuilder(
+            pageBuilder: (_, __, ___) => const DrivingScreen(),
+            transitionsBuilder: (_, anim, __, child) {
+              return FadeTransition(opacity: anim, child: child);
+            },
+            transitionDuration: const Duration(milliseconds: 600),
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to start: $e'),
-            backgroundColor: Colors.red.shade700,
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: AppColors.dangerRed, size: 18),
+                const SizedBox(width: 10),
+                Expanded(child: Text('Failed to connect: $e', style: const TextStyle(fontSize: 13))),
+              ],
+            ),
+            backgroundColor: const Color(0xFF1A1A2E),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: AppColors.dangerRed, width: 0.5),
+            ),
+            margin: const EdgeInsets.all(16),
           ),
         );
       }
@@ -67,328 +117,551 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E1A),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 40),
-
-              // ─── Logo & Title ──────────────────
-              _buildHeader(),
-
-              const SizedBox(height: 48),
-
-              // ─── Vehicle Type Selector ─────────
-              _buildVehicleSelector(),
-
-              const SizedBox(height: 32),
-
-              // ─── Server Settings ───────────────
-              _buildServerSettings(),
-
-              const SizedBox(height: 48),
-
-              // ─── Start Button ──────────────────
-              _buildStartButton(),
-
-              const SizedBox(height: 32),
-
-              // ─── Info Cards ────────────────────
-              _buildInfoCards(),
-
-              const SizedBox(height: 24),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Column(
-      children: [
-        // Animated icon
-        AnimatedBuilder(
-          animation: _pulseAnimation,
-          builder: (context, child) {
-            return Transform.scale(
-              scale: _pulseAnimation.value,
-              child: Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF00E5FF), Color(0xFF2979FF)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF00E5FF).withOpacity(0.3),
-                      blurRadius: 30,
-                      spreadRadius: 5,
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.cell_tower,
-                  size: 48,
-                  color: Colors.white,
-                ),
-              ),
-            );
-          },
-        ),
-        const SizedBox(height: 20),
-        const Text(
-          'RoadMesh',
-          style: TextStyle(
-            fontSize: 36,
-            fontWeight: FontWeight.w800,
-            color: Colors.white,
-            letterSpacing: 2,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Cooperative Vehicle Awareness',
-          style: TextStyle(
-            fontSize: 14,
-            color: Colors.white.withOpacity(0.6),
-            letterSpacing: 3,
-            fontWeight: FontWeight.w300,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildVehicleSelector() {
-    return Consumer<DrivingProvider>(
-      builder: (context, provider, _) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'VEHICLE TYPE',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: Colors.white.withOpacity(0.4),
-                letterSpacing: 2,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: VehicleType.values
-                  .where((t) => t != VehicleType.unknown)
-                  .map((type) => _vehicleChip(type, provider))
-                  .toList(),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _vehicleChip(VehicleType type, DrivingProvider provider) {
-    final isSelected = provider.vehicleType == type;
-    return GestureDetector(
-      onTap: () => provider.vehicleType = type,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          color: isSelected
-              ? const Color(0xFF00E5FF).withOpacity(0.15)
-              : Colors.white.withOpacity(0.05),
-          border: Border.all(
-            color: isSelected
-                ? const Color(0xFF00E5FF)
-                : Colors.white.withOpacity(0.1),
-            width: isSelected ? 1.5 : 1,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(type.icon, style: const TextStyle(fontSize: 18)),
-            const SizedBox(width: 8),
-            Text(
-              type.label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                color: isSelected
-                    ? const Color(0xFF00E5FF)
-                    : Colors.white.withOpacity(0.6),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildServerSettings() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'SERVER',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: Colors.white.withOpacity(0.4),
-            letterSpacing: 2,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            color: Colors.white.withOpacity(0.05),
-            border: Border.all(color: Colors.white.withOpacity(0.1)),
-          ),
-          child: TextField(
-            controller: _serverController,
-            style: const TextStyle(
-              color: Colors.white,
-              fontFamily: 'monospace',
-              fontSize: 13,
-            ),
-            decoration: InputDecoration(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              border: InputBorder.none,
-              prefixIcon: Icon(
-                Icons.dns_outlined,
-                color: Colors.white.withOpacity(0.3),
-                size: 20,
-              ),
-              hintText: 'ws://server:3000/ws',
-              hintStyle: TextStyle(
-                color: Colors.white.withOpacity(0.2),
-                fontFamily: 'monospace',
-                fontSize: 13,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStartButton() {
-    return AnimatedBuilder(
-      animation: _pulseAnimation,
-      builder: (context, child) {
-        return Container(
-          height: 60,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            gradient: const LinearGradient(
-              colors: [Color(0xFF00E5FF), Color(0xFF2979FF)],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF00E5FF).withOpacity(
-                  0.2 + (_pulseAnimation.value - 0.8) * 0.5,
-                ),
-                blurRadius: 20,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(16),
-              onTap: _startDriving,
-              child: const Center(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.play_arrow_rounded, color: Colors.white, size: 28),
-                    SizedBox(width: 8),
-                    Text(
-                      'START DRIVING',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                        letterSpacing: 2,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildInfoCards() {
-    return Row(
-      children: [
-        Expanded(
-          child: _infoCard(
-            Icons.shield_outlined,
-            'Anonymous',
-            'No personal data shared',
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _infoCard(
-            Icons.speed,
-            'Real-Time',
-            'Sub-second updates',
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _infoCard(IconData icon, String title, String subtitle) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        color: Colors.white.withOpacity(0.04),
-        border: Border.all(color: Colors.white.withOpacity(0.06)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      backgroundColor: AppColors.deepSpace,
+      body: Stack(
         children: [
-          Icon(icon, color: const Color(0xFF00E5FF), size: 22),
-          const SizedBox(height: 10),
-          Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
+          // ─── Animated mesh background ─────────────────────────────────────
+          AnimatedBuilder(
+            animation: _meshController,
+            builder: (_, __) => CustomPaint(
+              painter: _MeshPainter(_meshController.value),
+              child: const SizedBox.expand(),
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            subtitle,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.4),
-              fontSize: 11,
+
+          // ─── Gradient overlay ─────────────────────────────────────────────
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0xCC070B14),
+                  Color(0x88070B14),
+                  Color(0xDD070B14),
+                ],
+              ),
+            ),
+          ),
+
+          // ─── Content ──────────────────────────────────────────────────────
+          SafeArea(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 32),
+                  _buildHeader(),
+                  const SizedBox(height: 40),
+                  _buildVehicleSelector(),
+                  const SizedBox(height: 28),
+                  _buildServerInput(),
+                  const SizedBox(height: 40),
+                  _buildStartButton(),
+                  const SizedBox(height: 32),
+                  _buildFeatureRow(),
+                  const SizedBox(height: 32),
+                ],
+              ),
             ),
           ),
         ],
       ),
     );
   }
+
+  // ─── Header ────────────────────────────────────────────────────────────────
+
+  Widget _buildHeader() {
+    return Column(
+      children: [
+        // Animated logo orb
+        AnimatedBuilder(
+          animation: Listenable.merge([_pulseAnim, _glowAnim]),
+          builder: (_, __) {
+            return Stack(
+              alignment: Alignment.center,
+              children: [
+                // Outer glow ring
+                Container(
+                  width: 128,
+                  height: 128,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.cyberBlue.withValues(alpha: _glowAnim.value * 0.25),
+                        blurRadius: 60,
+                        spreadRadius: 20,
+                      ),
+                    ],
+                  ),
+                ),
+                // Logo circle
+                Transform.scale(
+                  scale: _pulseAnim.value,
+                  child: Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: const LinearGradient(
+                        colors: [AppColors.cyberBlue, AppColors.hyperBlue],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.cyberBlue.withValues(alpha: 0.4),
+                          blurRadius: 30,
+                          spreadRadius: 5,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.cell_tower_rounded,
+                      size: 46,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+
+        const SizedBox(height: 24),
+
+        // Title with neon glow text shadow
+        ShaderMask(
+          shaderCallback: (bounds) => AppColors.primaryGradient.createShader(bounds),
+          child: const Text(
+            'ROADMESH',
+            style: TextStyle(
+              fontFamily: 'Orbitron',
+              fontSize: 34,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+              letterSpacing: 6,
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 10),
+
+        // Subtitle
+        const Text(
+          'COOPERATIVE VEHICLE AWARENESS',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: AppColors.textMuted,
+            letterSpacing: 3,
+          ),
+        ),
+
+        const SizedBox(height: 20),
+
+        // Version badge
+        _GlassChip(label: 'v1.0.0 · REAL-TIME · ANONYMOUS'),
+      ],
+    );
+  }
+
+  // ─── Vehicle Selector ──────────────────────────────────────────────────────
+
+  Widget _buildVehicleSelector() {
+    return _GlassCard(
+      child: Consumer<DrivingProvider>(
+        builder: (_, provider, __) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const _SectionLabel('VEHICLE TYPE'),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: VehicleType.values
+                    .where((t) => t != VehicleType.unknown)
+                    .map((type) => _VehicleChip(
+                          type: type,
+                          isSelected: provider.vehicleType == type,
+                          onTap: () => provider.vehicleType = type,
+                        ))
+                    .toList(),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  // ─── Server Input ──────────────────────────────────────────────────────────
+
+  Widget _buildServerInput() {
+    return _GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _SectionLabel('SERVER CONNECTION'),
+          const SizedBox(height: 14),
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              color: const Color(0x0AFFFFFF),
+              border: Border.all(color: AppColors.glassBorder),
+            ),
+            child: TextField(
+              controller: _serverController,
+              style: const TextStyle(
+                color: AppColors.cyberBlue,
+                fontFamily: 'Courier',
+                fontSize: 13,
+                fontWeight: FontWeight.w400,
+              ),
+              decoration: InputDecoration(
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                prefixIcon: Icon(
+                  Icons.dns_rounded,
+                  color: AppColors.textMuted,
+                  size: 18,
+                ),
+                hintText: 'ws://server:3000/ws',
+                hintStyle: TextStyle(
+                  color: AppColors.textHint,
+                  fontFamily: 'Courier',
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Default: ws://10.0.2.2:3000/ws (Android emulator → host)',
+            style: TextStyle(
+              fontSize: 10,
+              color: AppColors.textMuted.withValues(alpha: 0.7),
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── Start Button ──────────────────────────────────────────────────────────
+
+  Widget _buildStartButton() {
+    return AnimatedBuilder(
+      animation: _glowAnim,
+      builder: (_, __) {
+        return GestureDetector(
+          onTap: _startDriving,
+          child: Container(
+            height: 64,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              gradient: const LinearGradient(
+                colors: [AppColors.cyberBlue, AppColors.hyperBlue],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.cyberBlue.withValues(alpha: _glowAnim.value * 0.5),
+                  blurRadius: 30,
+                  spreadRadius: -4,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(18),
+                splashColor: Colors.white.withValues(alpha: 0.15),
+                highlightColor: Colors.transparent,
+                onTap: _startDriving,
+                child: const Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.play_arrow_rounded, color: Colors.white, size: 30),
+                      SizedBox(width: 10),
+                      Text(
+                        'START DRIVING',
+                        style: TextStyle(
+                          fontFamily: 'Orbitron',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                          letterSpacing: 3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ─── Feature Row ───────────────────────────────────────────────────────────
+
+  Widget _buildFeatureRow() {
+    return Row(
+      children: [
+        _FeatureChip(Icons.shield_outlined, 'Anonymous'),
+        const SizedBox(width: 10),
+        _FeatureChip(Icons.bolt_rounded, 'Real-Time'),
+        const SizedBox(width: 10),
+        _FeatureChip(Icons.warning_amber_rounded, 'Collision AI'),
+      ],
+    );
+  }
+}
+
+// ─── Subwidgets ────────────────────────────────────────────────────────────────
+
+class _GlassCard extends StatelessWidget {
+  final Widget child;
+  final EdgeInsets? padding;
+
+  const _GlassCard({required this.child, this.padding});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          padding: padding ?? const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            color: AppColors.glassWhite,
+            border: Border.all(color: AppColors.glassBorder),
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+class _GlassChip extends StatelessWidget {
+  final String label;
+
+  const _GlassChip({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(100),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(100),
+            color: AppColors.glassBlue,
+            border: Border.all(
+              color: AppColors.cyberBlue.withValues(alpha: 0.3),
+            ),
+          ),
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: AppColors.cyberBlue,
+              letterSpacing: 2,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  final String text;
+
+  const _SectionLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: const TextStyle(
+        fontSize: 10,
+        fontWeight: FontWeight.w700,
+        color: AppColors.textMuted,
+        letterSpacing: 2.5,
+      ),
+    );
+  }
+}
+
+class _VehicleChip extends StatelessWidget {
+  final VehicleType type;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _VehicleChip({
+    required this.type,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: isSelected
+              ? AppColors.cyberBlue.withValues(alpha: 0.15)
+              : Colors.white.withValues(alpha: 0.04),
+          border: Border.all(
+            color: isSelected
+                ? AppColors.cyberBlue
+                : AppColors.glassBorder,
+            width: isSelected ? 1.5 : 1,
+          ),
+          boxShadow: isSelected
+              ? [BoxShadow(color: AppColors.cyberBlue.withValues(alpha: 0.2), blurRadius: 12)]
+              : [],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedScale(
+              scale: isSelected ? 1.15 : 1.0,
+              duration: const Duration(milliseconds: 200),
+              child: Text(type.icon, style: const TextStyle(fontSize: 17)),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              type.label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
+                color: isSelected ? AppColors.cyberBlue : AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FeatureChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _FeatureChip(this.icon, this.label);
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              color: AppColors.glassWhite,
+              border: Border.all(color: AppColors.glassBorder),
+            ),
+            child: Column(
+              children: [
+                Icon(icon, color: AppColors.cyberBlue, size: 20),
+                const SizedBox(height: 6),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                    letterSpacing: 0.5,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Mesh Particle Background Painter ─────────────────────────────────────────
+
+class _MeshPainter extends CustomPainter {
+  final double t;
+
+  _MeshPainter(this.t);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final nodes = _generateNodes(size);
+    final paint = Paint()..style = PaintingStyle.fill;
+    final linePaint = Paint()..style = PaintingStyle.stroke;
+
+    // Draw connections between nearby nodes
+    for (int i = 0; i < nodes.length; i++) {
+      for (int j = i + 1; j < nodes.length; j++) {
+        final dx = nodes[i].dx - nodes[j].dx;
+        final dy = nodes[i].dy - nodes[j].dy;
+        final dist = math.sqrt(dx * dx + dy * dy);
+
+        if (dist < 160) {
+          final opacity = (1 - dist / 160) * 0.12;
+          linePaint
+            ..color = AppColors.cyberBlue.withValues(alpha: opacity)
+            ..strokeWidth = 0.5;
+          canvas.drawLine(nodes[i], nodes[j], linePaint);
+        }
+      }
+    }
+
+    // Draw nodes
+    for (int i = 0; i < nodes.length; i++) {
+      final nodeT = (t + i * 0.07) % 1.0;
+      final nodeOpacity = 0.3 + 0.4 * math.sin(nodeT * math.pi * 2).abs();
+      paint.color = AppColors.cyberBlue.withValues(alpha: nodeOpacity * 0.6);
+      canvas.drawCircle(nodes[i], 1.5, paint);
+    }
+  }
+
+  List<Offset> _generateNodes(Size size) {
+    final rng = math.Random(42); // Fixed seed for stable layout
+    return List.generate(28, (i) {
+      final baseX = rng.nextDouble() * size.width;
+      final baseY = rng.nextDouble() * size.height;
+      final wobbleX = math.sin((t + i * 0.17) * math.pi * 2) * 12;
+      final wobbleY = math.cos((t + i * 0.23) * math.pi * 2) * 8;
+      return Offset(baseX + wobbleX, baseY + wobbleY);
+    });
+  }
+
+  @override
+  bool shouldRepaint(covariant _MeshPainter old) => old.t != t;
 }
