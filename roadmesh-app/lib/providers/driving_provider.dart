@@ -1,4 +1,4 @@
-// ─── Driving Session Provider ───────────────────────────────────────────────
+// ─── Driving Session Provider ─────────────────────────────────────────────────
 
 import 'dart:async';
 import 'package:flutter/foundation.dart';
@@ -8,11 +8,14 @@ import '../models/alert.dart';
 import '../services/location_service.dart';
 import '../services/websocket_service.dart';
 import '../services/collision_service.dart';
+import '../services/battery_service.dart';
+import '../services/app_logger.dart';
 
 class DrivingProvider extends ChangeNotifier {
   final LocationService _locationService = LocationService();
   final WebSocketService _wsService = WebSocketService();
   final CollisionService _collisionService = CollisionService();
+  final BatteryService _batteryService = BatteryService();
 
   // State
   bool _isDriving = false;
@@ -25,10 +28,12 @@ class DrivingProvider extends ChangeNotifier {
   List<Vehicle> _nearbyVehicles = [];
   List<CollisionAlert> _activeAlerts = [];
   RiskLevel _currentRiskLevel = RiskLevel.green;
+  int _latencyMs = 0;
 
   StreamSubscription? _locationSub;
   StreamSubscription? _nearbySub;
   StreamSubscription? _connectionSub;
+  StreamSubscription? _latencySub;
 
   // Getters
   bool get isDriving => _isDriving;
@@ -41,6 +46,8 @@ class DrivingProvider extends ChangeNotifier {
   List<CollisionAlert> get activeAlerts => _activeAlerts;
   RiskLevel get currentRiskLevel => _currentRiskLevel;
   String? get vehicleId => _wsService.vehicleId;
+  int get latencyMs => _latencyMs;
+  bool get isLowBattery => _batteryService.isLowBattery;
 
   // Setters
   set vehicleType(VehicleType type) {
@@ -56,20 +63,25 @@ class DrivingProvider extends ChangeNotifier {
   Future<void> startDriving() async {
     if (_isDriving) return;
 
+    AppLogger.info('Starting driving session');
+
     try {
-      // 1. Start location tracking
+      // 1. Start battery monitoring
+      await _batteryService.start();
+
+      // 2. Start location tracking
       await _locationService.startTracking();
 
-      // 2. Connect to server
+      // 3. Connect to server
       await _wsService.connect(
         serverUrl: _serverUrl.isNotEmpty ? _serverUrl : null,
       );
 
-      // 3. Listen to location updates
+      // 4. Listen to location updates
       _locationSub = _locationService.positionStream.listen((position) {
         _currentPosition = position;
         _currentSpeed = _locationService.getSpeedKmh(position);
-        _currentHeading = position.heading;
+        _currentHeading = position.heading < 0 ? 0 : position.heading;
 
         // Send position to server
         _wsService.sendPositionUpdate(
@@ -83,7 +95,7 @@ class DrivingProvider extends ChangeNotifier {
         notifyListeners();
       });
 
-      // 4. Listen to nearby vehicle updates
+      // 5. Listen to nearby vehicle updates
       _nearbySub = _wsService.nearbyStream.listen((update) {
         _nearbyVehicles = update.vehicles;
         _activeAlerts = update.alerts;
@@ -101,16 +113,23 @@ class DrivingProvider extends ChangeNotifier {
         notifyListeners();
       });
 
-      // 5. Listen to connection state
+      // 6. Listen to connection state
       _connectionSub = _wsService.connectionStream.listen((connected) {
         _isConnected = connected;
         notifyListeners();
       });
 
+      // 7. Listen to latency
+      _latencySub = _wsService.latencyStream.listen((ms) {
+        _latencyMs = ms;
+        notifyListeners();
+      });
+
       _isDriving = true;
       notifyListeners();
+      AppLogger.info('Driving session started');
     } catch (e) {
-      print('Failed to start driving: $e');
+      AppLogger.error('Failed to start driving session', e);
       await stopDriving();
       rethrow;
     }
@@ -118,13 +137,17 @@ class DrivingProvider extends ChangeNotifier {
 
   /// Stop the driving session.
   Future<void> stopDriving() async {
+    AppLogger.info('Stopping driving session');
+
     _locationSub?.cancel();
     _nearbySub?.cancel();
     _connectionSub?.cancel();
+    _latencySub?.cancel();
 
     _locationService.stopTracking();
     _wsService.disconnect();
     await _collisionService.stop();
+    _batteryService.stop();
 
     _isDriving = false;
     _isConnected = false;
@@ -132,6 +155,7 @@ class DrivingProvider extends ChangeNotifier {
     _activeAlerts = [];
     _currentRiskLevel = RiskLevel.green;
     _currentSpeed = 0;
+    _latencyMs = 0;
 
     notifyListeners();
   }
@@ -142,6 +166,7 @@ class DrivingProvider extends ChangeNotifier {
     _locationService.dispose();
     _wsService.dispose();
     _collisionService.dispose();
+    _batteryService.dispose();
     super.dispose();
   }
 }
