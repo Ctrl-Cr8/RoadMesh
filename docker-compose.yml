@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  server:
+    build:
+      context: ./roadmesh-server
+      dockerfile: ../docker/Dockerfile.server
+    ports:
+      - "3000:3000"
+      - "1883:1883"
+    environment:
+      - HTTP_PORT=3000
+      - MQTT_PORT=1883
+      - NEARBY_RADIUS_METERS=500
+      - VEHICLE_TIMEOUT_MS=10000
+      - COLLISION_HORIZON_SEC=10
+    restart: unless-stopped
+
+  simulator:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.simulator
+    ports:
+      - "3001:3001"
+    environment:
+      - SIMULATOR_PORT=3001
+      - WS_SERVER_URL=ws://server:3000/ws
+    depends_on:
+      - server
+    restart: unless-stopped
+
+  proxy:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - server
+      - simulator
+    restart: unless-stopped
