@@ -1,0 +1,31 @@
+name: Flutter CI
+
+on:
+  push:
+    branches: [ main, mizhab ]
+  pull_request:
+    branches: [ main, mizhab ]
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Get packages
+        run: cd roadmesh-app && flutter pub get
+
+      - name: Analyze code
+        run: cd roadmesh-app && flutter analyze
