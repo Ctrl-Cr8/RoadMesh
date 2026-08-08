@@ -29,6 +29,18 @@ dependencies:
   flutter_tts: ^4.2.0
   vibration: ^2.0.0
 
+  # Battery
+  battery_plus: ^6.0.3
+
+  # Charts (Stats screen)
+  fl_chart: ^0.69.0
+
+  # Local Storage (Onboarding)
+  shared_preferences: ^2.3.4
+
+  # Logging
+  logger: ^2.4.0
+
   # Utilities
   uuid: ^4.5.1
   intl: ^0.19.0
@@ -45,3 +57,34 @@ flutter:
 
   assets:
     - assets/icons/
+    - assets/fonts/
+
+  fonts:
+    - family: Orbitron
+      fonts:
+        - asset: assets/fonts/Orbitron-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Orbitron-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Orbitron-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Orbitron-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Orbitron-ExtraBold.ttf
+          weight: 800
+        - asset: assets/fonts/Orbitron-Black.ttf
+          weight: 900
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Light.ttf
+          weight: 300
+        - asset: assets/fonts/Inter-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Inter-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Inter-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Inter-ExtraBold.ttf
+          weight: 800
