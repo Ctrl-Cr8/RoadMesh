@@ -1,24 +1,39 @@
 // ─── RoadMesh Server Entry Point ────────────────────────────────────────────
 
 import { RoadMeshServer } from './server';
+import { createLogger } from './utils/logger';
 
-const server = new RoadMeshServer({
-    httpPort: parseInt(process.env.HTTP_PORT || '3000', 10),
-    mqttPort: parseInt(process.env.MQTT_PORT || '1883', 10),
-    nearbyRadiusMeters: parseInt(process.env.NEARBY_RADIUS || '500', 10),
-    vehicleTimeoutMs: parseInt(process.env.VEHICLE_TIMEOUT || '10000', 10),
-    collisionPredictionHorizonSec: parseInt(process.env.COLLISION_HORIZON || '10', 10),
+const log = createLogger('Main');
+
+const server = new RoadMeshServer();
+
+// ─── Graceful Shutdown ───────────────────────────────────────────────────────
+
+async function shutdown(signal: string): Promise<void> {
+    log.info(`Received ${signal}. Gracefully shutting down...`);
+    try {
+        await server.stop();
+        process.exit(0);
+    } catch (err) {
+        log.error('Error during shutdown:', err);
+        process.exit(1);
+    }
+}
+
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+
+// ─── Unhandled Rejections ────────────────────────────────────────────────────
+
+process.on('unhandledRejection', (reason) => {
+    log.error('Unhandled Promise Rejection:', reason);
 });
 
-// Graceful shutdown
-process.on('SIGINT', () => {
-    server.stop();
-    process.exit(0);
+process.on('uncaughtException', (err) => {
+    log.error('Uncaught Exception:', err);
+    process.exit(1);
 });
 
-process.on('SIGTERM', () => {
-    server.stop();
-    process.exit(0);
-});
+// ─── Start ───────────────────────────────────────────────────────────────────
 
 server.start();

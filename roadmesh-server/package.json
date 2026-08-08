@@ -8,21 +8,28 @@
         "build": "tsc",
         "start": "node dist/index.js",
         "test": "vitest run",
-        "test:watch": "vitest"
+        "test:unit": "vitest run tests/unit",
+        "test:integration": "vitest run tests/integration",
+        "test:watch": "vitest",
+        "test:coverage": "vitest run --coverage"
     },
     "dependencies": {
         "aedes": "^0.51.3",
         "cors": "^2.8.5",
         "express": "^4.21.2",
+        "express-rate-limit": "^8.6.2",
         "ngeohash": "^0.6.3",
         "uuid": "^11.1.0",
-        "ws": "^8.18.0"
+        "ws": "^8.18.0",
+        "zod": "^4.4.3"
     },
     "devDependencies": {
         "@types/cors": "^2.8.17",
         "@types/express": "^5.0.0",
+        "@types/supertest": "^7.2.1",
         "@types/uuid": "^10.0.0",
         "@types/ws": "^8.5.14",
+        "supertest": "^7.2.2",
         "ts-node": "^10.9.2",
         "typescript": "^5.7.3",
         "vitest": "^3.0.4"
