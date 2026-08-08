@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RoadMesh Simulator Controller</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #070B14;
+            --surface: #0D1220;
+            --card: #111827;
+            --cyan: #00E5FF;
+            --blue: #2979FF;
+            --danger: #FF1744;
+            --safe: #00E676;
+            --text: #FFFFFF;
+            --muted: #546E7A;
+            --border: rgba(255, 255, 255, 0.08);
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; padding: 32px; }
+        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; }
+        .header h1 { font-family: 'Orbitron', sans-serif; color: var(--cyan); letter-spacing: 3px; font-size: 24px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; }
+        .card h3 { font-size: 14px; font-family: 'Orbitron'; color: var(--muted); margin-bottom: 16px; letter-spacing: 1.5px; }
+        select, input[type="range"], button { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--card); color: white; margin-bottom: 12px; }
+        button { background: linear-gradient(135deg, var(--cyan), var(--blue)); color: black; font-weight: 700; font-family: 'Orbitron'; cursor: pointer; border: none; }
+        button.stop { background: var(--danger); color: white; }
+        .status-badge { display: inline-block; padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; background: rgba(0,230,118,0.1); color: var(--safe); }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <h1>SIMULATOR CONTROLLER</h1>
+            <p style="color: var(--muted); font-size: 12px; margin-top: 4px;">ROADMESH VEHICLE SCENARIO ENGINE</p>
+        </div>
+        <div class="status-badge" id="status-text">STATUS: IDLE</div>
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <h3>SCENARIO SELECTOR</h3>
+            <label style="font-size: 12px; color: var(--muted);">Select Simulation Scenario</label>
+            <select id="scenario-select">
+                <option value="headOn">Head-On Collision</option>
+                <option value="blindCorner">Blind Corner Hazard</option>
+                <option value="overtaking">Overtaking High Speed</option>
+                <option value="emergency">Emergency Ambulance</option>
+                <option value="intersection">4-Way Intersection</option>
+                <option value="schoolZone">School Zone (Bus + VRU)</option>
+                <option value="highwayMerge">Highway Merge</option>
+            </select>
+
+            <label style="font-size: 12px; color: var(--muted);">Simulation Speed Multiplier</label>
+            <input type="range" id="speed-slider" min="0.5" max="3.0" step="0.5" value="1.0" />
+            <div style="font-size: 11px; text-align: right; color: var(--cyan);" id="speed-val">1.0x</div>
+
+            <button id="start-btn" style="margin-top: 16px;">LAUNCH SCENARIO</button>
+            <button id="stop-btn" class="stop">STOP SIMULATOR</button>
+        </div>
+
+        <div class="card">
+            <h3>ACTIVE SCENARIO INFO</h3>
+            <div id="info-box" style="font-size: 13px; color: var(--muted); line-height: 1.6;">
+                No scenario active. Click "LAUNCH SCENARIO" to start injecting vehicle positions to the RoadMesh server.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const scenarioSelect = document.getElementById('scenario-select');
+        const speedSlider = document.getElementById('speed-slider');
+        const speedVal = document.getElementById('speed-val');
+        const startBtn = document.getElementById('start-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const statusText = document.getElementById('status-text');
+        const infoBox = document.getElementById('info-box');
+
+        speedSlider.addEventListener('input', () => {
+            speedVal.textContent = speedSlider.value + 'x';
+        });
+
+        startBtn.addEventListener('click', async () => {
+            const scenario = scenarioSelect.value;
+            const speed = parseFloat(speedSlider.value);
+
+            const res = await fetch('/api/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ scenario, speed }),
+            });
+            const data = await res.json();
+            if (res.ok) {
+                statusText.textContent = `STATUS: RUNNING (${data.scenario})`;
+                statusText.style.background = 'rgba(0, 229, 255, 0.15)';
+                statusText.style.color = '#00E5FF';
+                infoBox.innerHTML = `Running <b>${data.scenario}</b> scenario with <b>${data.vehicleCount}</b> vehicles active.<br>Open Admin Dashboard at <a href="http://localhost:3000/dashboard" target="_blank" style="color: #00E5FF;">http://localhost:3000/dashboard</a> to view live map movement.`;
+            }
+        });
+
+        stopBtn.addEventListener('click', async () => {
+            await fetch('/api/stop', { method: 'POST' });
+            statusText.textContent = 'STATUS: IDLE';
+            statusText.style.background = 'rgba(255, 23, 68, 0.15)';
+            statusText.style.color = '#FF1744';
+            infoBox.textContent = 'Simulator stopped.';
+        });
+    </script>
+</body>
+</html>
