@@ -118,3 +118,43 @@ export function angleDifference(heading1: number, heading2: number): number {
     const diff = Math.abs(normalizeAngle(heading1) - normalizeAngle(heading2));
     return diff > 180 ? 360 - diff : diff;
 }
+
+/**
+ * Calculate the time of closest approach (TCA) between two linearly-moving objects.
+ * Uses dot product of relative velocity and relative position vectors.
+ * @returns Seconds until closest approach (capped at horizonSec; 0 if already diverging)
+ */
+export function closestApproachTime(
+    lat1: number, lng1: number, speedKmh1: number, heading1: number,
+    lat2: number, lng2: number, speedKmh2: number, heading2: number,
+    horizonSec: number = 10
+): number {
+    // Convert speeds to m/s
+    const s1 = (speedKmh1 * 1000) / 3600;
+    const s2 = (speedKmh2 * 1000) / 3600;
+
+    // Velocity vectors (North-East frame, in m/s)
+    const v1n = s1 * Math.cos(toRadians(heading1));
+    const v1e = s1 * Math.sin(toRadians(heading1));
+    const v2n = s2 * Math.cos(toRadians(heading2));
+    const v2e = s2 * Math.sin(toRadians(heading2));
+
+    // Relative velocity
+    const dvn = v1n - v2n;
+    const dve = v1e - v2e;
+
+    // Relative position (approximate, in meters via lat/lng difference)
+    const metersPerDegreeLat = (Math.PI / 180) * EARTH_RADIUS_METERS;
+    const metersPerDegreeLng = metersPerDegreeLat * Math.cos(toRadians((lat1 + lat2) / 2));
+    const dpn = (lat1 - lat2) * metersPerDegreeLat;
+    const dpe = (lng1 - lng2) * metersPerDegreeLng;
+
+    // TCA = -(dp · dv) / |dv|²
+    const dvMagSq = dvn * dvn + dve * dve;
+    if (dvMagSq < 1e-9) return horizonSec; // Vehicles moving in parallel
+
+    const tca = -(dpn * dvn + dpe * dve) / dvMagSq;
+
+    if (tca < 0) return 0; // Already at or past closest approach
+    return Math.min(tca, horizonSec);
+}

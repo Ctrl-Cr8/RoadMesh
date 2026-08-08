@@ -1,6 +1,14 @@
 // ─── Vehicle & Message Types ───────────────────────────────────────────────
 
-export type VehicleType = 'CAR' | 'TRUCK' | 'MOTORCYCLE' | 'BUS' | 'AMBULANCE' | 'UNKNOWN';
+export type VehicleType =
+    | 'CAR'
+    | 'TRUCK'
+    | 'MOTORCYCLE'
+    | 'BUS'
+    | 'AMBULANCE'
+    | 'BICYCLE'
+    | 'PEDESTRIAN'
+    | 'UNKNOWN';
 
 export type RiskLevel = 'GREEN' | 'YELLOW' | 'RED';
 
@@ -12,7 +20,10 @@ export type AlertType =
     | 'LANE_MERGE'
     | 'WRONG_WAY'
     | 'STOPPED_VEHICLE'
-    | 'EMERGENCY_VEHICLE';
+    | 'EMERGENCY_VEHICLE'
+    | 'VULNERABLE_ROAD_USER';
+
+export type ConnectionSource = 'WS' | 'MQTT';
 
 export interface VehicleState {
     id: string;
@@ -22,6 +33,7 @@ export interface VehicleState {
     heading: number;     // degrees (0-360, 0=North)
     vehicleType: VehicleType;
     timestamp: number;   // Unix ms
+    source?: ConnectionSource;
 }
 
 export interface CollisionAlert {
@@ -41,6 +53,8 @@ export type MessageType =
     | 'COLLISION_WARNING'
     | 'HEARTBEAT'
     | 'REGISTER'
+    | 'PING'
+    | 'PONG'
     | 'DISCONNECT';
 
 export interface BaseMessage {
@@ -74,11 +88,23 @@ export interface RegisterMessage extends BaseMessage {
     };
 }
 
+export interface PingMessage extends BaseMessage {
+    type: 'PING';
+    payload: { clientTime: number };
+}
+
+export interface PongMessage extends BaseMessage {
+    type: 'PONG';
+    payload: { clientTime: number; serverTime: number };
+}
+
 export type RoadMeshMessage =
     | PositionUpdateMessage
     | NearbyVehiclesMessage
     | HeartbeatMessage
-    | RegisterMessage;
+    | RegisterMessage
+    | PingMessage
+    | PongMessage;
 
 // ─── Server Configuration ──────────────────────────────────────────────────
 
@@ -90,14 +116,18 @@ export interface ServerConfig {
     vehicleTimeoutMs: number;
     collisionPredictionHorizonSec: number;
     geohashPrecision: number;
+    rateLimitWindowMs: number;
+    rateLimitMax: number;
 }
 
 export const DEFAULT_CONFIG: ServerConfig = {
-    httpPort: 3000,
-    mqttPort: 1883,
-    nearbyRadiusMeters: 500,
+    httpPort: Number(process.env.HTTP_PORT) || 3000,
+    mqttPort: Number(process.env.MQTT_PORT) || 1883,
+    nearbyRadiusMeters: Number(process.env.NEARBY_RADIUS_METERS) || 500,
     positionUpdateIntervalMs: 1000,
-    vehicleTimeoutMs: 10000,
-    collisionPredictionHorizonSec: 10,
+    vehicleTimeoutMs: Number(process.env.VEHICLE_TIMEOUT_MS) || 10000,
+    collisionPredictionHorizonSec: Number(process.env.COLLISION_HORIZON_SEC) || 10,
     geohashPrecision: 6,
+    rateLimitWindowMs: 60_000,
+    rateLimitMax: 1000,
 };
