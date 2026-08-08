@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RoadMesh Admin Dashboard</title>
+    <!-- Leaflet CSS for Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="dashboard.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@600;800;900&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="logo-icon">📡</div>
+                <div class="brand-text">
+                    <h1>ROADMESH</h1>
+                    <p>ADMIN CONSOLE</p>
+                </div>
+            </div>
+
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active">
+                    <span class="icon">📊</span> Overview
+                </a>
+                <a href="#" class="nav-item">
+                    <span class="icon">🚗</span> Live Vehicles
+                </a>
+                <a href="#" class="nav-item">
+                    <span class="icon">⚠️</span> Alert Logs
+                </a>
+                <a href="#" class="nav-item">
+                    <span class="icon">⚙️</span> Settings
+                </a>
+            </nav>
+
+            <div class="server-status">
+                <div class="status-indicator online"></div>
+                <div class="status-info">
+                    <div class="status-label">SERVER ONLINE</div>
+                    <div class="status-sub" id="server-uptime">Uptime: 00:00:00</div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Metric Header -->
+            <header class="dashboard-header">
+                <div class="metric-card">
+                    <div class="metric-icon blue">🚗</div>
+                    <div class="metric-data">
+                        <div class="metric-label">ACTIVE VEHICLES</div>
+                        <div class="metric-value" id="active-vehicles-count">0</div>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-icon red">⚠️</div>
+                    <div class="metric-data">
+                        <div class="metric-label">ACTIVE ALERTS</div>
+                        <div class="metric-value" id="active-alerts-count">0</div>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-icon green">⚡</div>
+                    <div class="metric-data">
+                        <div class="metric-label">WS CLIENTS</div>
+                        <div class="metric-value" id="ws-clients-count">0</div>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-icon purple">📡</div>
+                    <div class="metric-data">
+                        <div class="metric-label">MQTT CLIENTS</div>
+                        <div class="metric-value" id="mqtt-clients-count">0</div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Dashboard Grid: Map + Alert Stream -->
+            <div class="dashboard-grid">
+                <!-- Map Container -->
+                <section class="panel map-panel">
+                    <div class="panel-header">
+                        <h2>LIVE VEHICLE SPATIAL MAP</h2>
+                        <span class="badge live-badge">● LIVE RADAR</span>
+                    </div>
+                    <div id="map"></div>
+                </section>
+
+                <!-- Alert Stream Panel -->
+                <section class="panel alerts-panel">
+                    <div class="panel-header">
+                        <h2>COLLISION ALERT STREAM</h2>
+                        <button id="clear-alerts-btn" class="btn-sm">Clear</button>
+                    </div>
+                    <div class="alerts-stream" id="alerts-stream-container">
+                        <div class="empty-state">No collision warnings recorded.</div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Vehicle Table Panel -->
+            <section class="panel table-panel">
+                <div class="panel-header">
+                    <h2>CONNECTED VEHICLES REGISTRY</h2>
+                    <input type="text" id="vehicle-search" placeholder="Search vehicle ID..." class="search-input" />
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>VEHICLE ID</th>
+                                <th>TYPE</th>
+                                <th>LAT / LNG</th>
+                                <th>SPEED</th>
+                                <th>HEADING</th>
+                                <th>LAST UPDATE</th>
+                                <th>STATUS</th>
+                            </tr>
+                        </thead>
+                        <tbody id="vehicle-table-body">
+                            <tr>
+                                <td colspan="7" class="empty-row">No active vehicles registered.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="dashboard.js"></script>
+</body>
+</html>
