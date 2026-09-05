@@ -18,14 +18,14 @@ build/
 .DS_Store
 
 # ─── Flutter ─────────────────────────────────────────────────
-roadmesh-app/android/
-roadmesh-app/ios/
-roadmesh-app/macos/
-roadmesh-app/windows/
-roadmesh-app/linux/
-roadmesh-app/web/
 roadmesh-app/.flutter-plugins
 roadmesh-app/.flutter-plugins-dependencies
+roadmesh-app/build/
+roadmesh-app/.dart_tool/
+roadmesh-app/android/.gradle/
+roadmesh-app/android/local.properties
+roadmesh-app/android/app/build/
+
 
 # ─── PlatformIO ──────────────────────────────────────────────
 roadmesh-node/.pio/
@@ -35,3 +35,4 @@ roadmesh-node/.vscode/
 .env
 .env.local
 *.log
+.roadmesh_pids

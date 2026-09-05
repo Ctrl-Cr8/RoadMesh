@@ -73,7 +73,7 @@ class StatsScreen extends StatelessWidget {
                   children: [
                     Expanded(child: _MetricCard(
                       label: 'DISTANCE',
-                      value: '${(s.totalDistanceMeters / 1000).toStringAsFixed(2)}',
+                      value: (s.totalDistanceMeters / 1000).toStringAsFixed(2),
                       unit: 'km',
                       icon: Icons.route_rounded,
                       color: AppColors.cyberBlue,
@@ -81,7 +81,7 @@ class StatsScreen extends StatelessWidget {
                     const SizedBox(width: 12),
                     Expanded(child: _MetricCard(
                       label: 'MAX SPEED',
-                      value: '${s.maxSpeedKmh.toStringAsFixed(0)}',
+                      value: s.maxSpeedKmh.toStringAsFixed(0),
                       unit: 'km/h',
                       icon: Icons.speed_rounded,
                       color: AppColors.neonPurple,
@@ -93,7 +93,7 @@ class StatsScreen extends StatelessWidget {
                   children: [
                     Expanded(child: _MetricCard(
                       label: 'AVG SPEED',
-                      value: '${s.avgSpeedKmh.toStringAsFixed(0)}',
+                      value: s.avgSpeedKmh.toStringAsFixed(0),
                       unit: 'km/h',
                       icon: Icons.trending_up_rounded,
                       color: AppColors.safeGreen,

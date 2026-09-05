@@ -38,7 +38,7 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
-    _serverController.text = 'ws://10.0.2.2:3000/ws';
+    _serverController.text = 'ws://127.0.0.1:3000/ws';
 
     _pulseController = AnimationController(
       vsync: this,
@@ -276,22 +276,54 @@ class _HomeScreenState extends State<HomeScreen>
     return _GlassCard(
       child: Consumer<DrivingProvider>(
         builder: (_, provider, __) {
+          final types = VehicleType.values.where((t) => t != VehicleType.unknown).toList();
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const _SectionLabel('VEHICLE TYPE'),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const _SectionLabel('VEHICLE TELEMETRY PROFILE'),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.cyberBlue.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: AppColors.cyberBlue.withValues(alpha: 0.3)),
+                    ),
+                    child: Text(
+                      '${provider.vehicleType.icon} ${provider.vehicleType.label}',
+                      style: const TextStyle(
+                        fontFamily: 'Orbitron',
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.cyberBlue,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 14),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: VehicleType.values
-                    .where((t) => t != VehicleType.unknown)
-                    .map((type) => _VehicleChip(
-                          type: type,
-                          isSelected: provider.vehicleType == type,
-                          onTap: () => provider.vehicleType = type,
-                        ))
-                    .toList(),
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  childAspectRatio: 2.4,
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                ),
+                itemCount: types.length,
+                itemBuilder: (ctx, idx) {
+                  final type = types[idx];
+                  final isSelected = provider.vehicleType == type;
+                  return _VehicleCard(
+                    type: type,
+                    isSelected: isSelected,
+                    onTap: () => provider.vehicleType = type,
+                  );
+                },
               ),
             ],
           );
@@ -323,9 +355,9 @@ class _HomeScreenState extends State<HomeScreen>
                 fontSize: 13,
                 fontWeight: FontWeight.w400,
               ),
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 13),
                 prefixIcon: Icon(
                   Icons.dns_rounded,
                   color: AppColors.textMuted,
@@ -340,16 +372,50 @@ class _HomeScreenState extends State<HomeScreen>
               ),
             ),
           ),
-          const SizedBox(height: 10),
-          Text(
-            'Default: ws://10.0.2.2:3000/ws (Android emulator → host)',
-            style: TextStyle(
-              fontSize: 10,
-              color: AppColors.textMuted.withValues(alpha: 0.7),
-              letterSpacing: 0.5,
-            ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              _presetChip('🔌 USB (127.0.0.1)', 'ws://127.0.0.1:3000/ws'),
+              _presetChip('📱 Emulator (10.0.2.2)', 'ws://10.0.2.2:3000/ws'),
+              _presetChip('🌐 Wi-Fi (10.210.147.50)', 'ws://10.210.147.50:3000/ws'),
+            ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _presetChip(String label, String url) {
+    final isCurrent = _serverController.text == url;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _serverController.text = url;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          color: isCurrent
+              ? AppColors.cyberBlue.withValues(alpha: 0.15)
+              : Colors.white.withValues(alpha: 0.04),
+          border: Border.all(
+            color: isCurrent
+                ? AppColors.cyberBlue.withValues(alpha: 0.6)
+                : AppColors.glassBorder,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w400,
+            color: isCurrent ? AppColors.cyberBlue : AppColors.textMuted,
+          ),
+        ),
       ),
     );
   }
@@ -433,9 +499,8 @@ class _HomeScreenState extends State<HomeScreen>
 
 class _GlassCard extends StatelessWidget {
   final Widget child;
-  final EdgeInsets? padding;
 
-  const _GlassCard({required this.child, this.padding});
+  const _GlassCard({required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -444,7 +509,7 @@ class _GlassCard extends StatelessWidget {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
         child: Container(
-          padding: padding ?? const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
             color: AppColors.glassWhite,
@@ -511,12 +576,12 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-class _VehicleChip extends StatelessWidget {
+class _VehicleCard extends StatelessWidget {
   final VehicleType type;
   final bool isSelected;
   final VoidCallback onTap;
 
-  const _VehicleChip({
+  const _VehicleCard({
     required this.type,
     required this.isSelected,
     required this.onTap,
@@ -527,39 +592,70 @@ class _VehicleChip extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
+        duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           color: isSelected
-              ? AppColors.cyberBlue.withValues(alpha: 0.15)
-              : Colors.white.withValues(alpha: 0.04),
+              ? AppColors.cyberBlue.withValues(alpha: 0.14)
+              : Colors.white.withValues(alpha: 0.03),
           border: Border.all(
-            color: isSelected
-                ? AppColors.cyberBlue
-                : AppColors.glassBorder,
-            width: isSelected ? 1.5 : 1,
+            color: isSelected ? AppColors.cyberBlue : AppColors.glassBorder,
+            width: isSelected ? 1.5 : 1.0,
           ),
           boxShadow: isSelected
-              ? [BoxShadow(color: AppColors.cyberBlue.withValues(alpha: 0.2), blurRadius: 12)]
+              ? [
+                  BoxShadow(
+                    color: AppColors.cyberBlue.withValues(alpha: 0.25),
+                    blurRadius: 10,
+                    spreadRadius: 0,
+                  ),
+                ]
               : [],
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            AnimatedScale(
-              scale: isSelected ? 1.15 : 1.0,
-              duration: const Duration(milliseconds: 200),
-              child: Text(type.icon, style: const TextStyle(fontSize: 17)),
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isSelected
+                    ? AppColors.cyberBlue.withValues(alpha: 0.2)
+                    : Colors.white.withValues(alpha: 0.05),
+              ),
+              alignment: Alignment.center,
+              child: Text(type.icon, style: const TextStyle(fontSize: 18)),
             ),
             const SizedBox(width: 8),
-            Text(
-              type.label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
-                color: isSelected ? AppColors.cyberBlue : AppColors.textSecondary,
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    type.displayName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                      color: isSelected ? Colors.white : AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    type.categorySubtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 9,
+                      color: isSelected ? AppColors.cyberBlue : AppColors.textMuted,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

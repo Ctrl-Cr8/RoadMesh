@@ -274,6 +274,7 @@ class _AlertCardState extends State<_AlertCard>
       case AlertType.wrongWay:        return Icons.do_not_disturb_on_rounded;
       case AlertType.stoppedVehicle:  return Icons.pause_circle_filled;
       case AlertType.emergencyVehicle:return Icons.local_hospital_rounded;
+      case AlertType.vulnerableRoadUser:return Icons.directions_walk_rounded;
     }
   }
 
@@ -287,6 +288,7 @@ class _AlertCardState extends State<_AlertCard>
       case AlertType.wrongWay:        return 'WRONG-WAY VEHICLE';
       case AlertType.stoppedVehicle:  return 'STOPPED VEHICLE';
       case AlertType.emergencyVehicle:return 'EMERGENCY VEHICLE';
+      case AlertType.vulnerableRoadUser:return 'PEDESTRIAN CROSSING';
     }
   }
 

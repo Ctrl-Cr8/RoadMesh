@@ -6,6 +6,7 @@ export type VehicleType =
     | 'MOTORCYCLE'
     | 'BUS'
     | 'AMBULANCE'
+    | 'AUTO_RICKSHAW'
     | 'BICYCLE'
     | 'PEDESTRIAN'
     | 'UNKNOWN';
@@ -23,7 +24,7 @@ export type AlertType =
     | 'EMERGENCY_VEHICLE'
     | 'VULNERABLE_ROAD_USER';
 
-export type ConnectionSource = 'WS' | 'MQTT';
+export type ConnectionSource = 'WS' | 'SIMULATOR';
 
 export interface VehicleState {
     id: string;
@@ -45,7 +46,7 @@ export interface CollisionAlert {
     bearing: number;          // degrees from ego vehicle
 }
 
-// ─── WebSocket / MQTT Message Protocol ─────────────────────────────────────
+// ─── WebSocket Message Protocol ────────────────────────────────────────────
 
 export type MessageType =
     | 'POSITION_UPDATE'
@@ -110,7 +111,6 @@ export type RoadMeshMessage =
 
 export interface ServerConfig {
     httpPort: number;
-    mqttPort: number;
     nearbyRadiusMeters: number;
     positionUpdateIntervalMs: number;
     vehicleTimeoutMs: number;
@@ -122,7 +122,6 @@ export interface ServerConfig {
 
 export const DEFAULT_CONFIG: ServerConfig = {
     httpPort: Number(process.env.HTTP_PORT) || 3000,
-    mqttPort: Number(process.env.MQTT_PORT) || 1883,
     nearbyRadiusMeters: Number(process.env.NEARBY_RADIUS_METERS) || 500,
     positionUpdateIntervalMs: 1000,
     vehicleTimeoutMs: Number(process.env.VEHICLE_TIMEOUT_MS) || 10000,

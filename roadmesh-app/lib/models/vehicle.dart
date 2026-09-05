@@ -2,26 +2,104 @@
 
 enum VehicleType {
   car,
-  truck,
+  autoRickshaw,
   motorcycle,
   bus,
+  truck,
   ambulance,
+  bicycle,
+  pedestrian,
   unknown;
 
   String get label {
     switch (this) {
       case VehicleType.car:
         return 'CAR';
-      case VehicleType.truck:
-        return 'TRUCK';
+      case VehicleType.autoRickshaw:
+        return 'AUTO_RICKSHAW';
       case VehicleType.motorcycle:
         return 'MOTORCYCLE';
       case VehicleType.bus:
         return 'BUS';
+      case VehicleType.truck:
+        return 'TRUCK';
       case VehicleType.ambulance:
         return 'AMBULANCE';
+      case VehicleType.bicycle:
+        return 'BICYCLE';
+      case VehicleType.pedestrian:
+        return 'PEDESTRIAN';
       case VehicleType.unknown:
         return 'UNKNOWN';
+    }
+  }
+
+  String get shortLabel {
+    switch (this) {
+      case VehicleType.car:
+        return 'CAR';
+      case VehicleType.autoRickshaw:
+        return 'AUTO';
+      case VehicleType.motorcycle:
+        return 'BIKE';
+      case VehicleType.bus:
+        return 'BUS';
+      case VehicleType.truck:
+        return 'TRUCK';
+      case VehicleType.ambulance:
+        return 'EMS';
+      case VehicleType.bicycle:
+        return 'CYCLE';
+      case VehicleType.pedestrian:
+        return 'VRU';
+      case VehicleType.unknown:
+        return 'VEH';
+    }
+  }
+
+  String get displayName {
+    switch (this) {
+      case VehicleType.car:
+        return 'Car / Taxi';
+      case VehicleType.autoRickshaw:
+        return 'Auto Rickshaw (3W)';
+      case VehicleType.motorcycle:
+        return 'Two-Wheeler (Bike)';
+      case VehicleType.bus:
+        return 'Bus / Public Transit';
+      case VehicleType.truck:
+        return 'Commercial Truck';
+      case VehicleType.ambulance:
+        return 'Emergency Ambulance';
+      case VehicleType.bicycle:
+        return 'Bicycle / Cyclist';
+      case VehicleType.pedestrian:
+        return 'Pedestrian (VRU)';
+      case VehicleType.unknown:
+        return 'Generic Vehicle';
+    }
+  }
+
+  String get categorySubtitle {
+    switch (this) {
+      case VehicleType.car:
+        return 'Standard Passenger';
+      case VehicleType.autoRickshaw:
+        return 'Urban 3-Wheeler';
+      case VehicleType.motorcycle:
+        return 'Agile Two-Wheeler';
+      case VehicleType.bus:
+        return 'Public Transit';
+      case VehicleType.truck:
+        return 'Commercial Freight';
+      case VehicleType.ambulance:
+        return 'Emergency Priority';
+      case VehicleType.bicycle:
+        return 'Cyclist (VRU)';
+      case VehicleType.pedestrian:
+        return 'Pedestrian (VRU)';
+      case VehicleType.unknown:
+        return 'Generic Node';
     }
   }
 
@@ -29,14 +107,20 @@ enum VehicleType {
     switch (this) {
       case VehicleType.car:
         return '🚗';
-      case VehicleType.truck:
-        return '🚛';
+      case VehicleType.autoRickshaw:
+        return '🛺';
       case VehicleType.motorcycle:
         return '🏍️';
       case VehicleType.bus:
         return '🚌';
+      case VehicleType.truck:
+        return '🚛';
       case VehicleType.ambulance:
         return '🚑';
+      case VehicleType.bicycle:
+        return '🚲';
+      case VehicleType.pedestrian:
+        return '🚶';
       case VehicleType.unknown:
         return '🚙';
     }
@@ -46,14 +130,27 @@ enum VehicleType {
     switch (value.toUpperCase()) {
       case 'CAR':
         return VehicleType.car;
-      case 'TRUCK':
-        return VehicleType.truck;
+      case 'AUTO_RICKSHAW':
+      case 'AUTO':
+      case 'RICKSHAW':
+        return VehicleType.autoRickshaw;
       case 'MOTORCYCLE':
+      case 'BIKE':
+      case 'SCOOTER':
         return VehicleType.motorcycle;
       case 'BUS':
         return VehicleType.bus;
+      case 'TRUCK':
+        return VehicleType.truck;
       case 'AMBULANCE':
+      case 'EMERGENCY':
         return VehicleType.ambulance;
+      case 'BICYCLE':
+      case 'CYCLE':
+        return VehicleType.bicycle;
+      case 'PEDESTRIAN':
+      case 'WALKER':
+        return VehicleType.pedestrian;
       default:
         return VehicleType.unknown;
     }

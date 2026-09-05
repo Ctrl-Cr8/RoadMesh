@@ -14,6 +14,7 @@ const ALERT_DESCRIPTIONS: Record<AlertType, string> = {
     WRONG_WAY: 'Wrong-way vehicle detected',
     STOPPED_VEHICLE: 'Stopped vehicle ahead',
     EMERGENCY_VEHICLE: 'Emergency vehicle approaching',
+    VULNERABLE_ROAD_USER: 'Pedestrian or cyclist nearby',
 };
 
 /**
@@ -56,14 +57,10 @@ export function getVoiceAlert(alert: CollisionAlert): string | null {
             return 'Caution. Stopped vehicle ahead.';
         case 'EMERGENCY_VEHICLE':
             return 'Emergency vehicle approaching. Please yield.';
+        case 'VULNERABLE_ROAD_USER':
+            return 'Caution: Pedestrian crossing active outside School Zone. Reduce speed to 20.';
         default:
             return 'Caution. Vehicle nearby.';
     }
 }
 
-/**
- * Determine if this alert should trigger a buzzer (for IoT node).
- */
-export function shouldBuzz(alert: CollisionAlert): boolean {
-    return alert.riskLevel === 'RED';
-}

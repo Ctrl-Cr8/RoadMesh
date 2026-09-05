@@ -2,7 +2,7 @@
 
 class AppConstants {
   // Server
-  static const String defaultServerHost = '10.0.2.2'; // Android emulator → localhost
+  static const String defaultServerHost = '127.0.0.1'; // Physical device (via adb reverse) & localhost
   static const int defaultServerPort = 3000;
   static String get defaultWsUrl => 'ws://$defaultServerHost:$defaultServerPort/ws';
 
@@ -23,4 +23,7 @@ class AppConstants {
 
   // UI
   static const double mapPadding = 50.0;
+
+  // Google Maps Platform API Key (Directions, Places Autocomplete, Geocoding)
+  static const String googleMapsApiKey = 'AIzaSyA4szxLy96ImPgQuv94X4gfbk6N76hcnD4';
 }

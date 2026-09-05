@@ -9,7 +9,6 @@ let server: RoadMeshServer;
 beforeAll(() => {
     server = new RoadMeshServer({
         httpPort: 13001, // Use non-standard port to avoid conflicts
-        mqttPort: 11883,
     });
     server.start();
 });
@@ -28,7 +27,6 @@ describe('GET /', () => {
         expect(res.body.endpoints).toHaveProperty('metrics');
         expect(res.body.endpoints).toHaveProperty('websocket');
         expect(res.body.endpoints).toHaveProperty('dashboard');
-        expect(res.body.mqtt).toHaveProperty('port');
     });
 });
 
@@ -54,7 +52,6 @@ describe('GET /stats', () => {
         expect(res.status).toBe(200);
         expect(res.body).toHaveProperty('totalVehicles');
         expect(res.body).toHaveProperty('wsClients');
-        expect(res.body).toHaveProperty('mqttClients');
         expect(res.body).toHaveProperty('config');
     });
 

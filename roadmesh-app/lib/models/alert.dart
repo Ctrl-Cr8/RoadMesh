@@ -60,7 +60,8 @@ enum AlertType {
   laneMerge,
   wrongWay,
   stoppedVehicle,
-  emergencyVehicle;
+  emergencyVehicle,
+  vulnerableRoadUser;
 
   String get label {
     switch (this) {
@@ -80,6 +81,8 @@ enum AlertType {
         return 'STOPPED_VEHICLE';
       case AlertType.emergencyVehicle:
         return 'EMERGENCY_VEHICLE';
+      case AlertType.vulnerableRoadUser:
+        return 'VULNERABLE_ROAD_USER';
     }
   }
 
@@ -101,6 +104,8 @@ enum AlertType {
         return 'Stopped Vehicle';
       case AlertType.emergencyVehicle:
         return 'Emergency Vehicle';
+      case AlertType.vulnerableRoadUser:
+        return 'Pedestrian Crossing Ahead';
     }
   }
 
@@ -122,6 +127,8 @@ enum AlertType {
         return Icons.stop_circle;
       case AlertType.emergencyVehicle:
         return Icons.local_hospital;
+      case AlertType.vulnerableRoadUser:
+        return Icons.directions_walk;
     }
   }
 
@@ -143,6 +150,9 @@ enum AlertType {
         return AlertType.stoppedVehicle;
       case 'EMERGENCY_VEHICLE':
         return AlertType.emergencyVehicle;
+      case 'VULNERABLE_ROAD_USER':
+      case 'PEDESTRIAN_CROSSING':
+        return AlertType.vulnerableRoadUser;
       default:
         return AlertType.blindCorner;
     }
@@ -209,6 +219,8 @@ class CollisionAlert {
         return 'Caution. Stopped vehicle ahead.';
       case AlertType.emergencyVehicle:
         return 'Emergency vehicle approaching. Please yield.';
+      case AlertType.vulnerableRoadUser:
+        return 'Caution: Pedestrian crossing active outside School Zone. Reduce speed to 20.';
     }
   }
 }

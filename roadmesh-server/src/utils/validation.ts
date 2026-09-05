@@ -1,6 +1,6 @@
 // ─── Input Validation Schemas (Zod) ─────────────────────────────────────────
 //
-// Validates all incoming WebSocket/MQTT messages before they enter the system.
+// Validates all incoming WebSocket messages before they enter the system.
 
 import { z } from 'zod';
 
@@ -8,7 +8,7 @@ import { z } from 'zod';
 
 const VehicleTypeSchema = z.enum([
     'CAR', 'TRUCK', 'MOTORCYCLE', 'BUS', 'AMBULANCE',
-    'BICYCLE', 'PEDESTRIAN', 'UNKNOWN',
+    'AUTO_RICKSHAW', 'BICYCLE', 'PEDESTRIAN', 'UNKNOWN',
 ]);
 
 const LatSchema = z.number().min(-90).max(90);
@@ -47,16 +47,6 @@ export const PingPayloadSchema = z.object({
 export const IncomingMessageSchema = z.object({
     type: z.enum(['POSITION_UPDATE', 'HEARTBEAT', 'PING']),
     timestamp: TimestampSchema.optional(),
-    payload: z.record(z.unknown()),
+    payload: z.record(z.string(), z.unknown()),
 });
 
-// ─── MQTT Position Payload (from ESP32 — no type wrapper) ────────────────────
-
-export const MqttPositionPayloadSchema = z.object({
-    lat: LatSchema,
-    lng: LngSchema,
-    speed: SpeedSchema,
-    heading: HeadingSchema,
-    vehicleType: VehicleTypeSchema.optional().default('UNKNOWN'),
-    timestamp: z.number().optional(),
-});
