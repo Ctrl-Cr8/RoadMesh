@@ -98,11 +98,30 @@ document.addEventListener('DOMContentLoaded', () => {
         attribution: '© Google Maps'
     });
 
+    // 3. OpenStreetMap
+    const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap'
+    });
+
     // Layer switcher (top-right)
     L.control.layers({
-        'Roadmap': googleRoadmap,
-        'Satellite Hybrid': googleHybrid
+        'Google Roadmap': googleRoadmap,
+        'Google Satellite': googleHybrid,
+        'OpenStreetMap': osmLayer
     }, null, { position: 'topright' }).addTo(map);
+
+    // Ensure Leaflet calculates final CSS grid/flex dimensions
+    setTimeout(() => { map.invalidateSize(); }, 150);
+    setTimeout(() => { map.invalidateSize(); }, 500);
+    setTimeout(() => { map.invalidateSize(); }, 1200);
+
+    const mapEl = document.getElementById('map');
+    if (mapEl && window.ResizeObserver) {
+        new ResizeObserver(() => {
+            map.invalidateSize();
+        }).observe(mapEl);
+    }
 
     // Auto-center on browser host location
     if (navigator.geolocation) {

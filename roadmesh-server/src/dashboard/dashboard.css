@@ -450,8 +450,11 @@ body {
 .map-canvas {
     flex-grow: 1;
     width: 100%;
-    min-height: 440px;
+    height: 100%;
+    min-height: 480px;
     background: var(--bg-subtle);
+    position: relative;
+    z-index: 1;
 }
 
 /* ─── Leaflet SaaS Theme Overrides ─────────────────────────────────────────── */
