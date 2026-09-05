@@ -6,7 +6,7 @@ This guide covers running the complete RoadMesh stack using Docker Compose.
 
 ## 🐳 One-Command Deployment
 
-Run the entire platform (Server, Simulator REST Engine, Admin Dashboard, Nginx Reverse Proxy) with a single command:
+Run the entire platform (Core Server, Admin Dashboard, Nginx Reverse Proxy) with a single command:
 
 ```bash
 docker-compose up -d --build
@@ -16,10 +16,9 @@ docker-compose up -d --build
 
 | Service | URL | Description |
 |---|---|---|
-| **Nginx Main Entry** | `http://localhost/` | Proxies dashboard, WS, and simulator |
-| **Admin Dashboard** | `http://localhost/dashboard` | Real-time map & vehicle tracking UI |
+| **Nginx Main Entry** | `http://localhost/` | Proxies dashboard and WebSocket |
+| **Admin Dashboard** | `http://localhost/dashboard` | Real-time map & mobile vehicle tracking UI |
 | **WebSocket Endpoint** | `ws://localhost/ws` | Mobile app telemetry endpoint |
-| **Simulator Control UI** | `http://localhost/sim/` | Scenario engine browser controller |
 | **Metrics Endpoint** | `http://localhost:3000/metrics` | Prometheus metrics |
 
 ---

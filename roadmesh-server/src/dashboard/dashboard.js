@@ -50,39 +50,61 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // ─── Initialize Leaflet Dark Map ──────────────────────────────────────────
-    // Default center at Kochi, Kerala demo coordinates
+    // ─── Initialize Map with Google Maps Platform ─────────────────────────────
+    const GOOGLE_MAPS_KEY = 'AIzaSyA4szxLy96ImPgQuv94X4gfbk6N76hcnD4';
+
+    // Default view: Starts with general view, then immediately zooms to user's real GPS
     const map = L.map('map', {
         zoomControl: true,
-        attributionControl: false
-    }).setView([10.0261, 76.3125], 15);
+        attributionControl: true
+    }).setView([20.5937, 78.9629], 5);
 
-    // CartoDB Dark Matter Tiles (High-contrast, dark mode road vector tiles)
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        maxZoom: 19,
-        subdomains: 'abcd'
+    // 1. Google Maps Roadmap (Full Natural Colors: streets, parks, terrain, water)
+    const googleRoadmap = L.tileLayer(`https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&key=${GOOGLE_MAPS_KEY}`, {
+        maxZoom: 20,
+        subdomains: ['0', '1', '2', '3'],
+        attribution: '© Google Maps'
     }).addTo(map);
+
+    // 2. Google Maps Satellite Hybrid (Satellite Imagery + Street Overlays)
+    const googleHybrid = L.tileLayer(`https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}&key=${GOOGLE_MAPS_KEY}`, {
+        maxZoom: 20,
+        subdomains: ['0', '1', '2', '3'],
+        attribution: '© Google Maps'
+    });
+
+    // Layer switcher (top-right)
+    L.control.layers({
+        '🗺️ Google Roadmap (Full Color)': googleRoadmap,
+        '🛰️ Google Satellite': googleHybrid
+    }, null, { position: 'topright' }).addTo(map);
+
+    // Auto-center on browser host location
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                map.setView([pos.coords.latitude, pos.coords.longitude], 16);
+            },
+            () => {
+                // Will auto-center on incoming smartphone GPS
+            },
+            { enableHighAccuracy: true, timeout: 5000 }
+        );
+    }
 
     const vehicleMarkers = {};
     const vehicleThreats = {};
 
-    // ─── Arduino Smart School Crossing Node (V2I RSU) ─────────────────────────
-    const schoolCoords = [10.0261, 76.3125];
-
-    const schoolCircle = L.circle(schoolCoords, {
-        color: '#FFB300',
-        fillColor: '#FFB300',
-        fillOpacity: 0.12,
-        radius: 130,
-        weight: 1.5,
-        dashArray: '4, 4'
-    }).addTo(map);
+    // ─── Dynamic Arduino V2I RSU Beacon ───────────────────────────────────────
+    let schoolCoords = null;
+    let schoolCircle = null;
+    let rsuMarker = null;
 
     const rsuCustomIcon = L.divIcon({
         className: 'rsu-marker',
         html: `
             <div style="position: relative; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;">
-                <div style="position: absolute; width: 32px; height: 32px; border-radius: 50%; background: rgba(255,179,0,0.2); border: 2px solid #FFB300; box-shadow: 0 0 14px #FFB300;"></div>
+                <div style="position: absolute; width: 32px; height: 32px; border-radius: 50%; background: rgba(255,179,0,0.25); border: 2px solid #FFB300; box-shadow: 0 0 14px #FFB300;"></div>
                 <span style="font-size: 16px; position: relative; z-index: 2;">🚸</span>
             </div>
         `,
@@ -90,16 +112,36 @@ document.addEventListener('DOMContentLoaded', () => {
         iconAnchor: [17, 17]
     });
 
-    const rsuMarker = L.marker(schoolCoords, { icon: rsuCustomIcon })
-        .addTo(map)
-        .bindPopup(`
-            <div style="color: #10172A; font-family: sans-serif; min-width: 180px;">
-                <strong style="color: #FF8F00;">🚸 ARDUINO SMART RSU</strong><br>
-                <span>Model Public School Zone</span><br>
-                <small>Hardware: Arduino Uno (Pin 2 / LED 13)</small><br>
-                <b style="color: #0288D1;">Advisory Speed: 20 km/h</b>
-            </div>
-        `);
+    function setRsuBeaconLocation(lat, lng) {
+        schoolCoords = [lat, lng];
+        if (!schoolCircle) {
+            schoolCircle = L.circle(schoolCoords, {
+                color: '#FFB300',
+                fillColor: '#FFB300',
+                fillOpacity: 0.15,
+                radius: 130,
+                weight: 2,
+                dashArray: '4, 4'
+            }).addTo(map);
+        } else {
+            schoolCircle.setLatLng(schoolCoords);
+        }
+
+        if (!rsuMarker) {
+            rsuMarker = L.marker(schoolCoords, { icon: rsuCustomIcon })
+                .addTo(map)
+                .bindPopup(`
+                    <div style="color: #10172A; font-family: sans-serif; min-width: 180px;">
+                        <strong style="color: #FF8F00;">🚸 ARDUINO SMART RSU</strong><br>
+                        <span>Pedestrian Crossing Zone</span><br>
+                        <small>Hardware: Arduino Uno (Pin 2 / LED 13)</small><br>
+                        <b style="color: #0288D1;">Advisory Speed: 20 km/h</b>
+                    </div>
+                `);
+        } else {
+            rsuMarker.setLatLng(schoolCoords);
+        }
+    }
 
     // ─── DOM References ───────────────────────────────────────────────────────
     const activeVehiclesEl = document.getElementById('active-vehicles-count');
@@ -115,13 +157,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const clearAlertsBtn = document.getElementById('clear-alerts-btn');
     const vehicleSearch = document.getElementById('vehicle-search');
 
-    // Scenario Controls
-    const scenarioSelect = document.getElementById('scenario-select');
-    const btnLaunchScenario = document.getElementById('btn-launch-scenario');
-    const btnStopScenario = document.getElementById('btn-stop-scenario');
+    // Mobile Hub Controls
+    const wsEndpointUrlInput = document.getElementById('ws-endpoint-url');
+    const btnCopyWs = document.getElementById('btn-copy-ws');
+    const btnCopyAdb = document.getElementById('btn-copy-adb');
+    const btnFocusDevices = document.getElementById('btn-focus-devices');
     const btnTriggerArduino = document.getElementById('btn-trigger-arduino');
     const arduinoStatusSub = document.getElementById('arduino-status-sub');
     const arduinoLed = document.getElementById('arduino-led-indicator');
+    let hasAutoFramed = false;
 
     // Audio Controls
     const audioToggleBtn = document.getElementById('audio-toggle-btn');
@@ -217,20 +261,21 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // Auto pan if vehicles exist
-        if (vehicles.length > 0 && map.getZoom() < 14) {
-            map.panTo([vehicles[0].lat, vehicles[0].lng]);
+        // Auto pan & fit bounds on active mobile devices
+        if (vehicles.length > 0 && !hasAutoFramed) {
+            focusOnActiveVehicles();
+            hasAutoFramed = true;
         }
 
         // Arduino RSU Visual State
         if (hasPedestrianCross) {
-            schoolCircle.setStyle({ color: '#FF1744', fillColor: '#FF1744', fillOpacity: 0.35 });
+            if (schoolCircle) schoolCircle.setStyle({ color: '#FF1744', fillColor: '#FF1744', fillOpacity: 0.35 });
             rsuStatusVal.textContent = 'PEDESTRIAN HAZARD';
             rsuStatusVal.style.color = '#FF1744';
             arduinoLed.classList.add('active');
             arduinoStatusSub.textContent = 'ACTIVE STROBE (CROSSING)';
         } else {
-            schoolCircle.setStyle({ color: '#FFB300', fillColor: '#FFB300', fillOpacity: 0.12 });
+            if (schoolCircle) schoolCircle.setStyle({ color: '#FFB300', fillColor: '#FFB300', fillOpacity: 0.12 });
             rsuStatusVal.textContent = 'MONITORING';
             rsuStatusVal.style.color = '#FFB300';
             arduinoLed.classList.remove('active');
@@ -244,7 +289,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const filtered = vehicles.filter(v => v.id.toLowerCase().includes(filter) || v.vehicleType.toLowerCase().includes(filter));
 
         if (filtered.length === 0) {
-            vehicleTableBody.innerHTML = `<tr><td colspan="7" class="empty-row">No active vehicle nodes match criteria.</td></tr>`;
+            vehicleTableBody.innerHTML = `<tr><td colspan="7" class="empty-row">No active mobile devices connected. Open the Flutter app on your phone to stream live GPS.</td></tr>`;
             return;
         }
 
@@ -254,15 +299,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 ? `<span class="threat-high">⚠️ IMMINENT RISK</span>`
                 : `<span class="threat-safe">✓ NOMINAL</span>`;
 
+            const accuracyText = v.accuracy ? `<br><small style="color:#64748B;">GPS: ±${v.accuracy.toFixed(1)}m</small>` : '';
+
             return `
                 <tr>
-                    <td><strong>${v.id}</strong></td>
+                    <td><strong>${v.id}</strong>${accuracyText}</td>
                     <td><span class="type-chip">${v.vehicleType}</span></td>
                     <td>${v.lat.toFixed(5)}, ${v.lng.toFixed(5)}</td>
                     <td>${v.speed.toFixed(0)} km/h</td>
                     <td>${v.heading.toFixed(0)}°</td>
                     <td>${threatBadge}</td>
-                    <td><span class="status-online">● ACTIVE</span></td>
+                    <td><span class="status-online">● ${v.source || 'MOBILE_APP'}</span></td>
                 </tr>
             `;
         }).join('');
@@ -409,43 +456,66 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) {}
     }
 
-    // ─── Scenario Actions ─────────────────────────────────────────────────────
-    btnLaunchScenario.addEventListener('click', async () => {
-        initAudio();
-        const scenario = scenarioSelect.value;
-        btnLaunchScenario.disabled = true;
-        btnLaunchScenario.textContent = 'LAUNCHING...';
+    // ─── Mobile Pairing & Tactical Controls ──────────────────────────────────
+    async function fetchConnectionInfo() {
+        const isCloudHost = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+        if (isCloudHost) {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            wsEndpointUrlInput.value = `${protocol}//${window.location.host}/ws`;
+            return;
+        }
 
         try {
-            const res = await fetch('http://localhost:3001/api/start', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ scenario, speed: 1.0 })
-            });
-
+            const res = await fetch('/connect');
             if (res.ok) {
                 const data = await res.json();
-                btnLaunchScenario.innerHTML = `<span>ACTIVE (${data.vehicleCount} CARS)</span>`;
-                playHazardChime('info');
-            } else {
-                alert('Simulator engine on port 3001 not responding. Run: ./run.sh simulator');
-                btnLaunchScenario.innerHTML = '<span>▶ LAUNCH</span>';
+                if (data.wifiWsUrls && data.wifiWsUrls.length > 0) {
+                    wsEndpointUrlInput.value = data.wifiWsUrls[0];
+                } else if (data.usbTunnelWsUrl) {
+                    wsEndpointUrlInput.value = data.usbTunnelWsUrl;
+                } else {
+                    wsEndpointUrlInput.value = `ws://${window.location.hostname}:3000/ws`;
+                }
             }
         } catch (e) {
-            alert('Simulator engine on port 3001 is offline. Start it with: ./run.sh simulator');
-            btnLaunchScenario.innerHTML = '<span>▶ LAUNCH</span>';
-        } finally {
-            btnLaunchScenario.disabled = false;
+            wsEndpointUrlInput.value = `ws://${window.location.hostname || 'localhost'}:3000/ws`;
         }
-    });
+    }
+    fetchConnectionInfo();
 
-    btnStopScenario.addEventListener('click', async () => {
-        try {
-            await fetch('http://localhost:3001/api/stop', { method: 'POST' });
-            btnLaunchScenario.innerHTML = '<span>▶ LAUNCH</span>';
-            fetchVehicles();
-        } catch (e) {}
-    });
+    if (btnCopyWs) {
+        btnCopyWs.addEventListener('click', () => {
+            if (!wsEndpointUrlInput.value) return;
+            navigator.clipboard.writeText(wsEndpointUrlInput.value);
+            btnCopyWs.textContent = '✓';
+            setTimeout(() => { btnCopyWs.textContent = '📋'; }, 1500);
+        });
+    }
+
+    if (btnCopyAdb) {
+        btnCopyAdb.addEventListener('click', () => {
+            navigator.clipboard.writeText('adb reverse tcp:3000 tcp:3000');
+            btnCopyAdb.textContent = '✓';
+            setTimeout(() => { btnCopyAdb.textContent = '📋'; }, 1500);
+        });
+    }
+
+    function focusOnActiveVehicles() {
+        const markers = Object.values(vehicleMarkers);
+        if (markers.length === 1) {
+            map.flyTo(markers[0].getLatLng(), 16, { animate: true, duration: 1.0 });
+        } else if (markers.length > 1) {
+            const group = L.featureGroup(markers);
+            map.fitBounds(group.getBounds(), { padding: [60, 60], maxZoom: 17, animate: true });
+        }
+    }
+
+    if (btnFocusDevices) {
+        btnFocusDevices.addEventListener('click', () => {
+            initAudio();
+            focusOnActiveVehicles();
+        });
+    }
 
     // ─── Arduino Pedestrian Button Simulation ─────────────────────────────────
     btnTriggerArduino.addEventListener('click', async () => {
@@ -455,6 +525,11 @@ document.addEventListener('DOMContentLoaded', () => {
         arduinoStatusSub.textContent = 'PEDESTRIAN CROSSING ACTIVE (PIN 13 STROBE)';
 
         try {
+            const center = map.getCenter();
+            const rsuLat = center.lat;
+            const rsuLng = center.lng;
+            setRsuBeaconLocation(rsuLat, rsuLng);
+
             // Post an active pedestrian crossing to the spatial engine
             await fetch('/vehicles', {
                 method: 'POST',
@@ -462,8 +537,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({
                     id: 'arduino-uno-crossing-1',
                     vehicleType: 'PEDESTRIAN',
-                    lat: schoolCoords[0],
-                    lng: schoolCoords[1],
+                    lat: rsuLat,
+                    lng: rsuLng,
                     speed: 1.4,
                     heading: 90,
                     timestamp: Date.now()

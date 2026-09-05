@@ -23,35 +23,40 @@
                 </div>
             </div>
 
-            <!-- Interactive Scenario Command Hub -->
-            <div class="scenario-command-card">
+            <!-- Live Mobile Telemetry & Pairing Hub -->
+            <div class="mobile-hub-card">
                 <div class="card-title-row">
-                    <span class="card-badge">🎮 SCENARIO INJECTOR</span>
+                    <span class="card-badge">📱 REAL-TIME MOBILE V2X</span>
                 </div>
-                <p class="card-desc">Inject live multi-vehicle kinematic physics into the AI collision engine:</p>
-                
-                <div class="form-group">
-                    <label for="scenario-select">HAZARD SCENARIO</label>
-                    <select id="scenario-select" class="cyber-select">
-                        <option value="headOn">💥 Head-On Collision (TTC: 3.2s)</option>
-                        <option value="blindCorner">👁️ Blind Corner Obstructed View</option>
-                        <option value="emergency">🚑 Emergency Ambulance EVW</option>
-                        <option value="schoolZone">🚸 School Zone (Bus + Pedestrians)</option>
-                        <option value="overtaking">⚡ High-Speed Blind Overtake</option>
-                        <option value="intersection">🚦 4-Way Unsignalized Crossing</option>
-                    </select>
+                <p class="card-desc">Live telemetry stream from smartphones running the RoadMesh Flutter app:</p>
+
+                <!-- Connection Endpoint Card -->
+                <div class="pairing-box">
+                    <div class="pairing-label">WI-FI WEBSOCKET ENDPOINT</div>
+                    <div class="pairing-input-row">
+                        <input type="text" id="ws-endpoint-url" class="cyber-input" readonly value="Loading IP..." />
+                        <button id="btn-copy-ws" class="btn-icon" title="Copy WebSocket URL">📋</button>
+                    </div>
+                    <div class="pairing-tip">Enter this URL in the Flutter App Settings or launch screen.</div>
                 </div>
 
-                <div class="scenario-actions">
-                    <button id="btn-launch-scenario" class="btn-primary-neon">
-                        <span>▶ LAUNCH</span>
-                    </button>
-                    <button id="btn-stop-scenario" class="btn-danger-neon">
-                        <span>⏹ STOP</span>
+                <!-- USB ADB Reverse Helper -->
+                <div class="pairing-box usb-box">
+                    <div class="pairing-label">USB ANDROID TUNNEL</div>
+                    <div class="code-snippet-row">
+                        <code>adb reverse tcp:3000 tcp:3000</code>
+                        <button id="btn-copy-adb" class="btn-icon-sm" title="Copy ADB Command">📋</button>
+                    </div>
+                </div>
+
+                <!-- Tactical Controls -->
+                <div class="tactical-actions">
+                    <button id="btn-focus-devices" class="btn-primary-neon">
+                        <span>🎯 FOCUS ACTIVE PHONES</span>
                     </button>
                 </div>
 
-                <!-- Arduino Hardware V2I Trigger -->
+                <!-- Arduino Hardware V2I Section -->
                 <div class="arduino-v2i-section">
                     <div class="arduino-header">
                         <span class="arduino-icon">🚸</span>
@@ -62,9 +67,9 @@
                         <div class="arduino-led" id="arduino-led-indicator"></div>
                     </div>
                     <button id="btn-trigger-arduino" class="btn-arduino">
-                        <span>⚡ SIMULATE PEDESTRIAN BUTTON</span>
+                        <span>⚡ TEST SCHOOL CROSSING BEACON</span>
                     </button>
-                    <p class="arduino-hint">Emulates the physical pedestrian pushbutton switch connected to Arduino Uno Pin 2.</p>
+                    <p class="arduino-hint">Hardware Roadside Unit connected via USB serial or simulated trigger.</p>
                 </div>
             </div>
 
@@ -158,7 +163,7 @@
                         <div class="empty-state">
                             <div class="empty-icon">🛡️</div>
                             <div class="empty-text">No active collision threats in monitored perimeter.</div>
-                            <div class="empty-sub">Launch a scenario from the sidebar to inject conflicting vehicle trajectories.</div>
+                            <div class="empty-sub">Phones running the RoadMesh mobile app within 500m will be evaluated in real time.</div>
                         </div>
                     </div>
                 </section>
@@ -168,27 +173,27 @@
             <section class="panel table-panel">
                 <div class="panel-header">
                     <div class="title-with-badge">
-                        <h2>LIVE KINEMATIC VEHICLE TELEMETRY</h2>
-                        <span class="badge count-badge" id="telemetry-count-badge">0 NODES</span>
+                        <h2>LIVE MOBILE DEVICE TELEMETRY</h2>
+                        <span class="badge count-badge" id="telemetry-count-badge">0 SMARTPHONES</span>
                     </div>
-                    <input type="text" id="vehicle-search" placeholder="Filter Vehicle ID..." class="search-input" />
+                    <input type="text" id="vehicle-search" placeholder="Filter Vehicle / Device ID..." class="search-input" />
                 </div>
                 <div class="table-container">
                     <table>
                         <thead>
                             <tr>
-                                <th>VEHICLE / NODE ID</th>
+                                <th>DEVICE / VEHICLE ID</th>
                                 <th>TYPE</th>
                                 <th>COORDINATES (LAT, LNG)</th>
                                 <th>SPEED</th>
                                 <th>HEADING</th>
                                 <th>TTC / THREAT</th>
-                                <th>STATUS</th>
+                                <th>SOURCE / STATUS</th>
                             </tr>
                         </thead>
                         <tbody id="vehicle-table-body">
                             <tr>
-                                <td colspan="7" class="empty-row">No active vehicles registered. Launch a scenario to start data stream.</td>
+                                <td colspan="7" class="empty-row">No active mobile devices connected. Open the Flutter app on your phone to stream live GPS.</td>
                             </tr>
                         </tbody>
                     </table>

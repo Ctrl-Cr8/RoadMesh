@@ -24,7 +24,7 @@ export type AlertType =
     | 'EMERGENCY_VEHICLE'
     | 'VULNERABLE_ROAD_USER';
 
-export type ConnectionSource = 'WS' | 'SIMULATOR';
+export type ConnectionSource = 'MOBILE_APP' | 'V2I_BEACON' | 'WS';
 
 export interface VehicleState {
     id: string;
@@ -34,6 +34,10 @@ export interface VehicleState {
     heading: number;     // degrees (0-360, 0=North)
     vehicleType: VehicleType;
     timestamp: number;   // Unix ms
+    accuracy?: number;   // GPS horizontal accuracy in meters
+    altitude?: number;   // Altitude in meters
+    batteryLevel?: number; // Smartphone battery level (0-100)
+    deviceModel?: string;  // Smartphone model or identifier
     source?: ConnectionSource;
 }
 
@@ -121,7 +125,7 @@ export interface ServerConfig {
 }
 
 export const DEFAULT_CONFIG: ServerConfig = {
-    httpPort: Number(process.env.HTTP_PORT) || 3000,
+    httpPort: Number(process.env.PORT) || Number(process.env.HTTP_PORT) || 3000,
     nearbyRadiusMeters: Number(process.env.NEARBY_RADIUS_METERS) || 500,
     positionUpdateIntervalMs: 1000,
     vehicleTimeoutMs: Number(process.env.VEHICLE_TIMEOUT_MS) || 10000,
