@@ -9,7 +9,6 @@ import 'providers/stats_provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'theme/app_theme.dart';
-import 'theme/app_colors.dart';
 import 'services/app_logger.dart';
 
 void main() async {
@@ -19,9 +18,9 @@ void main() async {
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-      systemNavigationBarColor: AppColors.deepSpace,
-      systemNavigationBarIconBrightness: Brightness.light,
+      statusBarIconBrightness: Brightness.dark,
+      systemNavigationBarColor: Colors.white,
+      systemNavigationBarIconBrightness: Brightness.dark,
     ),
   );
 
@@ -61,7 +60,7 @@ class _RoadMeshAppState extends State<RoadMeshApp> {
       child: MaterialApp(
         title: 'RoadMesh',
         debugShowCheckedModeBanner: false,
-        theme: AppTheme.dark,
+        theme: AppTheme.light,
         home: _showOnboarding
             ? OnboardingScreen(
                 onComplete: () {

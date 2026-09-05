@@ -10,20 +10,20 @@ import 'app_colors.dart';
 class AppTheme {
   AppTheme._();
 
-  static ThemeData get dark {
+  static ThemeData get light {
     return ThemeData(
       useMaterial3: true,
-      brightness: Brightness.dark,
-      scaffoldBackgroundColor: AppColors.deepSpace,
+      brightness: Brightness.light,
+      scaffoldBackgroundColor: const Color(0xFFF8FAFC),
 
       // ─── Color Scheme ──────────────────────────────────────────────────────
-      colorScheme: const ColorScheme.dark(
+      colorScheme: const ColorScheme.light(
         primary:        AppColors.cyberBlue,
         secondary:      AppColors.hyperBlue,
         tertiary:       AppColors.neonPurple,
-        surface:        AppColors.surface,
+        surface:        Colors.white,
         error:          AppColors.dangerRed,
-        onPrimary:      Colors.black,
+        onPrimary:      Colors.white,
         onSecondary:    Colors.white,
         onSurface:      AppColors.textPrimary,
         onError:        Colors.white,
@@ -35,36 +35,37 @@ class AppTheme {
 
       // ─── AppBar ────────────────────────────────────────────────────────────
       appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.deepSpace,
+        backgroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
         titleTextStyle: TextStyle(
-          fontFamily: 'Orbitron',
-          fontSize: 18,
-          fontWeight: FontWeight.w700,
+          fontFamily: 'Inter',
+          fontSize: 16,
+          fontWeight: FontWeight.w800,
           color: AppColors.textPrimary,
-          letterSpacing: 2,
+          letterSpacing: 0.5,
         ),
+        iconTheme: IconThemeData(color: AppColors.textPrimary),
         systemOverlayStyle: SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.light,
+          statusBarIconBrightness: Brightness.dark,
         ),
       ),
 
       // ─── Input Decoration ──────────────────────────────────────────────────
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.glassWhite,
+        fillColor: const Color(0xFFF1F5F9),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.glassBorder),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.glassBorder),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: AppColors.cyberBlue, width: 1.5),
         ),
         hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 13),
@@ -73,11 +74,11 @@ class AppTheme {
 
       // ─── Card ──────────────────────────────────────────────────────────────
       cardTheme: CardThemeData(
-        color: AppColors.surface,
+        color: Colors.white,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: AppColors.glassBorder),
+          borderRadius: BorderRadius.circular(18),
+          side: const BorderSide(color: Color(0xFFE2E8F0)),
         ),
         margin: EdgeInsets.zero,
       ),
@@ -86,12 +87,13 @@ class AppTheme {
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.cyberBlue,
-          foregroundColor: Colors.black,
+          foregroundColor: Colors.white,
           elevation: 0,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           textStyle: const TextStyle(
+            fontFamily: 'Inter',
             fontWeight: FontWeight.w700,
-            letterSpacing: 1.5,
+            letterSpacing: 0.5,
             fontSize: 14,
           ),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -100,38 +102,40 @@ class AppTheme {
 
       // ─── Divider ───────────────────────────────────────────────────────────
       dividerTheme: const DividerThemeData(
-        color: AppColors.glassBorder,
+        color: Color(0xFFE2E8F0),
         thickness: 1,
         space: 1,
       ),
     );
   }
 
+  static ThemeData get dark => light;
+
   // ─── Text Theme ─────────────────────────────────────────────────────────────
 
   static TextTheme _buildTextTheme() {
     return const TextTheme(
-      // Hero display (Orbitron — used for logo, large numbers)
+      // Hero display (Inter — clean, elegant, modern)
       displayLarge: TextStyle(
-        fontFamily: 'Orbitron',
-        fontSize: 48,
+        fontFamily: 'Inter',
+        fontSize: 44,
         fontWeight: FontWeight.w900,
         color: AppColors.textPrimary,
-        letterSpacing: 4,
+        letterSpacing: -0.5,
       ),
       displayMedium: TextStyle(
-        fontFamily: 'Orbitron',
-        fontSize: 36,
+        fontFamily: 'Inter',
+        fontSize: 34,
         fontWeight: FontWeight.w800,
         color: AppColors.textPrimary,
-        letterSpacing: 3,
+        letterSpacing: -0.5,
       ),
       displaySmall: TextStyle(
-        fontFamily: 'Orbitron',
-        fontSize: 28,
-        fontWeight: FontWeight.w700,
+        fontFamily: 'Inter',
+        fontSize: 26,
+        fontWeight: FontWeight.w800,
         color: AppColors.textPrimary,
-        letterSpacing: 2,
+        letterSpacing: -0.5,
       ),
 
       // Headings (Inter)

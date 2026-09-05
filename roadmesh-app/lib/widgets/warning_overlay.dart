@@ -179,9 +179,9 @@ class _AlertCardState extends State<_AlertCard>
                                     '${alert.timeToCollision.toStringAsFixed(1)}s',
                                     style: TextStyle(
                                       fontSize: 15,
-                                      fontWeight: FontWeight.w800,
+                                      fontWeight: FontWeight.w900,
                                       color: color,
-                                      fontFamily: 'Orbitron',
+                                      fontFamily: 'Inter',
                                     ),
                                   ),
                                 ),
