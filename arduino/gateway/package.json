@@ -1,8 +1,8 @@
 {
-  "name": "tools",
+  "name": "gateway",
   "version": "1.0.0",
   "description": "",
-  "main": "simulator.js",
+  "main": "gateway.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -10,9 +10,6 @@
   "author": "",
   "license": "ISC",
   "type": "commonjs",
-  "dependencies": {
-    "cors": "^2.8.6",
-    "express": "^4.22.2",
     "ws": "^8.21.3"
   }
 }

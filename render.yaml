@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: roadmesh-server
+    runtime: node
+    rootDir: roadmesh-server
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 20.18.0
+      - key: NEARBY_RADIUS_METERS
+        value: "500"
+      - key: COLLISION_HORIZON_SEC
+        value: "10"
+      - key: VEHICLE_TIMEOUT_MS
+        value: "10000"
+    plan: free
+    autoDeploy: true

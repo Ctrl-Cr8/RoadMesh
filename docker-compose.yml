@@ -14,19 +14,6 @@ services:
       - COLLISION_HORIZON_SEC=10
     restart: unless-stopped
 
-  simulator:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.simulator
-    ports:
-      - "3001:3001"
-    environment:
-      - SIMULATOR_PORT=3001
-      - WS_SERVER_URL=ws://server:3000/ws
-    depends_on:
-      - server
-    restart: unless-stopped
-
   proxy:
     image: nginx:alpine
     ports:
@@ -35,5 +22,5 @@ services:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
       - server
-      - simulator
     restart: unless-stopped
+

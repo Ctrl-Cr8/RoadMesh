@@ -6,7 +6,7 @@
 # Automates:
 #   1. USB ADB Authorization & Connection verification
 #   2. USB Tunneling (adb reverse tcp:3000 tcp:3000)
-#   3. Backend Server & Indian Traffic Simulator auto-check & start
+#   3. Backend Server auto-check & start
 #   4. APK Installation & Instant App Launch on Phone
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -103,7 +103,7 @@ echo -e "\n${BLUE}🔌 Configuring USB port forwarding (Reverse Proxy)...${RESET
 adb -s "$DEVICE_ID" reverse tcp:3000 tcp:3000
 echo -e "   ${GREEN}✓ Reverse tunnel active: phone 127.0.0.1:3000 -> host 3000${RESET}"
 
-# 4. Ensure Backend Core Server & Simulator are running
+# 4. Ensure Backend Core Server is running
 echo -e "\n${BLUE}⚙️  Verifying backend services...${RESET}"
 if ! lsof -ti:3000 &> /dev/null; then
     echo -e "   ${YELLOW}Starting RoadMesh Core Server on port 3000...${RESET}"
