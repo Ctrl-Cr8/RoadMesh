@@ -185,11 +185,11 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                             child: Text(
                               _currentPage < 2 ? 'NEXT' : 'GET STARTED',
                               style: const TextStyle(
-                                fontFamily: 'Orbitron',
+                                fontFamily: 'Inter',
                                 fontSize: 13,
-                                fontWeight: FontWeight.w700,
+                                fontWeight: FontWeight.w800,
                                 color: Colors.white,
-                                letterSpacing: 2.5,
+                                letterSpacing: 1.0,
                               ),
                             ),
                           ),
@@ -273,9 +273,9 @@ class _PageContent extends StatelessWidget {
             page.title,
             textAlign: TextAlign.center,
             style: const TextStyle(
-              fontFamily: 'Orbitron',
+              fontFamily: 'Inter',
               fontSize: 22,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w800,
               color: AppColors.textPrimary,
               height: 1.3,
             ),

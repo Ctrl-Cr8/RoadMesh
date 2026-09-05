@@ -8,22 +8,28 @@
 // - Real-time speed limit badge and overspeed alerts
 // - Instant camera re-center and compass North orientation
 
+import 'dart:async';
 import 'dart:math' as math;
-import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../providers/driving_provider.dart';
 import '../models/alert.dart';
 import '../models/vehicle.dart';
 import '../navigation/navigation_route.dart';
 import '../navigation/route_service.dart';
 import '../widgets/warning_overlay.dart';
-import '../widgets/status_bar.dart';
-import '../widgets/navigation_banner.dart';
 import '../widgets/radar_range_dialog.dart';
 import '../widgets/map_layer_sheet.dart';
 import '../widgets/destination_picker_sheet.dart';
+import '../widgets/maneuver_top_hud.dart';
+import '../widgets/speedometer_top_hud.dart';
+import '../widgets/geoposition_share_banner.dart';
+import '../widgets/lane_guidance_overlay.dart';
+import '../widgets/floating_map_dock.dart';
+import '../widgets/nav_floating_pill_bar.dart';
 import '../theme/app_colors.dart';
 import '../utils/vehicle_marker_painter.dart';
 import 'home_screen.dart';
@@ -43,14 +49,23 @@ class _DrivingScreenState extends State<DrivingScreen>
   // Cached vector descriptors
   final Map<String, BitmapDescriptor> _markerCache = {};
 
-  // Camera follow state
+  // Camera follow state & programmatic animation lock guard
   bool _isCameraFollowLocked = true;
+  bool _isProgrammaticCameraMove = false;
+
+  // Off-route tracking & auto-rerouting guards
+  int _offRouteTicks = 0;
+  DateTime _lastRerouteTime = DateTime.fromMillisecondsSinceEpoch(0);
+  String _currentLocationDisplayName = 'Your Current Location';
+  LatLng? _lastGeocodedPos;
 
   // Map layer controls
   MapType _currentMapType = MapType.normal;
-  bool _isDarkStyleActive = true;
+  bool _isDarkStyleActive = false; // Default to crisp light navigation theme as in Image 1
   bool _isTrafficEnabled = false;
   bool _is3DMode = true;
+  bool _showGeopositionBanner = true;
+  bool _isMapReady = false;
 
   // V2X Radar Detection Range in Meters (0 = OFF, up to 300m)
   int _radarRangeMeters = 300;
@@ -67,7 +82,27 @@ class _DrivingScreenState extends State<DrivingScreen>
   double _speedLimitKmh = 40.0;
   bool _showSpeedLimitSign = true;
   bool _isAutoSpeedLimit = true;
-  String _currentSpeedZoneName = 'MA College Rd (College Zone)';
+  String _currentSpeedZoneName = 'Local Road';
+
+  // Google Maps Clean Daytime Light style JSON (Apple / Yandex / 2GIS aesthetic)
+  static const String _lightMapStyle = '''
+  [
+    {"elementType": "geometry", "stylers": [{"color": "#edf1f5"}]},
+    {"elementType": "labels.icon", "stylers": [{"visibility": "on"}]},
+    {"elementType": "labels.text.fill", "stylers": [{"color": "#334155"}]},
+    {"elementType": "labels.text.stroke", "stylers": [{"color": "#ffffff"}, {"weight": 3}]},
+    {"featureType": "poi", "elementType": "geometry", "stylers": [{"color": "#e2e8f0"}]},
+    {"featureType": "poi.park", "elementType": "geometry.fill", "stylers": [{"color": "#cce8cf"}]},
+    {"featureType": "road", "elementType": "geometry", "stylers": [{"color": "#ffffff"}]},
+    {"featureType": "road", "elementType": "geometry.stroke", "stylers": [{"color": "#cbd5e1"}, {"weight": 1.5}]},
+    {"featureType": "road.arterial", "elementType": "geometry", "stylers": [{"color": "#ffffff"}]},
+    {"featureType": "road.arterial", "elementType": "geometry.stroke", "stylers": [{"color": "#94a3b8"}, {"weight": 2.0}]},
+    {"featureType": "road.highway", "elementType": "geometry", "stylers": [{"color": "#fed7aa"}]},
+    {"featureType": "road.highway", "elementType": "geometry.stroke", "stylers": [{"color": "#f97316"}, {"weight": 2.5}]},
+    {"featureType": "transit.line", "elementType": "geometry", "stylers": [{"color": "#cbd5e1"}]},
+    {"featureType": "water", "elementType": "geometry", "stylers": [{"color": "#93c5fd"}]}
+  ]
+  ''';
 
   // Google Maps Dark/Night style JSON
   static const String _darkMapStyle = '''
@@ -90,11 +125,13 @@ class _DrivingScreenState extends State<DrivingScreen>
   ]
   ''';
 
+  static const LatLng _defaultCenter = LatLng(10.0538, 76.6193);
+
   @override
   void initState() {
     super.initState();
-    _speedLimitKmh = RouteService.getDesignatedSpeedLimit('MA College Rd');
-    _currentSpeedZoneName = 'MA College Rd (College Zone)';
+    _speedLimitKmh = 40.0;
+    _currentSpeedZoneName = 'Local Road';
 
     _riskPulseController = AnimationController(
       vsync: this,
@@ -109,6 +146,237 @@ class _DrivingScreenState extends State<DrivingScreen>
     _riskPulseController.dispose();
     _mapController?.dispose();
     super.dispose();
+  }
+
+  /// Safely animates camera programmatically without accidentally triggering manual drag unlock.
+  Future<void> _animateCameraProgrammatically(CameraUpdate update, {bool keepFollowLocked = true}) async {
+    if (_mapController == null) return;
+    if (keepFollowLocked) {
+      _isProgrammaticCameraMove = true;
+      if (!_isCameraFollowLocked) {
+        setState(() {
+          _isCameraFollowLocked = true;
+        });
+      }
+    }
+    await _mapController!.animateCamera(update);
+  }
+
+  /// Finds the closest projected point and segment heading on a polyline to given coordinate.
+  (LatLng, double, double) _findNearestRouteProjection(
+    LatLng point,
+    List<LatLng> polyline,
+  ) {
+    if (polyline.isEmpty) return (point, 0.0, 0.0);
+    if (polyline.length == 1) {
+      final d = RouteService.distanceBetween(point, polyline[0]);
+      return (polyline[0], 0.0, d);
+    }
+
+    double minDistance = double.infinity;
+    LatLng closestProjection = polyline[0];
+    double closestHeading = 0.0;
+
+    for (int i = 0; i < polyline.length - 1; i++) {
+      final p1 = polyline[i];
+      final p2 = polyline[i + 1];
+
+      final dLat = p2.latitude - p1.latitude;
+      final dLng = p2.longitude - p1.longitude;
+      final segLengthSq = (dLat * dLat) + (dLng * dLng);
+
+      LatLng proj;
+      if (segLengthSq < 1e-12) {
+        proj = p1;
+      } else {
+        final t = (((point.latitude - p1.latitude) * dLat) +
+                ((point.longitude - p1.longitude) * dLng)) /
+            segLengthSq;
+        final clampedT = t.clamp(0.0, 1.0);
+        proj = LatLng(
+          p1.latitude + (clampedT * dLat),
+          p1.longitude + (clampedT * dLng),
+        );
+      }
+
+      final dist = RouteService.distanceBetween(point, proj);
+      if (dist < minDistance) {
+        minDistance = dist;
+        closestProjection = proj;
+        closestHeading = (math.atan2(dLng, dLat) * 180 / math.pi) % 360;
+      }
+    }
+
+    return (closestProjection, closestHeading, minDistance);
+  }
+
+  /// Resolves the car's real physical GPS position, heading, and driving speed.
+  (LatLng, double, double) _resolveCarTelemetry(DrivingProvider provider) {
+    if (provider.currentPosition == null) {
+      return (
+        _defaultCenter,
+        provider.currentHeading > 0 ? provider.currentHeading : 0.0,
+        0.0,
+      );
+    }
+
+    final realGps = LatLng(
+      provider.currentPosition!.latitude,
+      provider.currentPosition!.longitude,
+    );
+    final speed = provider.currentSpeed;
+    double heading = provider.currentHeading;
+
+    // Periodically reverse-geocode to update origin address name
+    _maybeUpdateLocationName(realGps);
+
+    if (_activeRoute != null && _activeRoute!.polylinePoints.isNotEmpty) {
+      final (nearestPoint, segmentHeading, distMeters) =
+          _findNearestRouteProjection(realGps, _activeRoute!.polylinePoints);
+
+      // Clean road-snapping if driver is within 25m of route line
+      if (distMeters <= 25.0) {
+        _offRouteTicks = 0;
+        if (heading <= 0) {
+          heading = segmentHeading;
+        }
+        return (nearestPoint, heading, speed);
+      }
+
+      // If driver is more than 45m away from the route, trigger automatic rerouting
+      if (distMeters > 45.0) {
+        _checkOffRouteAndReroute(realGps);
+      }
+
+      return (realGps, heading, speed);
+    }
+
+    return (realGps, heading, speed);
+  }
+
+  void _checkOffRouteAndReroute(LatLng realGps) {
+    _offRouteTicks++;
+    if (_offRouteTicks >= 3 && !_isCalculatingRoute) {
+      final now = DateTime.now();
+      if (now.difference(_lastRerouteTime).inSeconds > 6) {
+        _lastRerouteTime = now;
+        _offRouteTicks = 0;
+        _triggerReroute(realGps);
+      }
+    }
+  }
+
+  Future<void> _triggerReroute(LatLng realGps) async {
+    if (_activeRoute == null || _isCalculatingRoute) return;
+    final dest = _activeRoute!.destination;
+
+    setState(() {
+      _isCalculatingRoute = true;
+    });
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).removeCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Off route • Recalculating route to ${dest.title}...',
+                  style: const TextStyle(fontFamily: 'Inter', fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF0F172A),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+
+    try {
+      final newRoute = await RouteService.calculateRoute(
+        origin: realGps,
+        destination: dest,
+      );
+
+      if (!mounted) return;
+
+      final activeRoadName = newRoute.steps.isNotEmpty ? newRoute.steps[0].streetName : dest.title;
+
+      setState(() {
+        _activeRoute = newRoute;
+        _currentStepIndex = 0;
+        _isCalculatingRoute = false;
+        _currentSpeedZoneName = activeRoadName;
+        if (_isAutoSpeedLimit) {
+          _speedLimitKmh = RouteService.getDesignatedSpeedLimit(activeRoadName);
+        }
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isCalculatingRoute = false;
+        });
+      }
+    }
+  }
+
+  void _maybeUpdateLocationName(LatLng pos) {
+    if (_lastGeocodedPos != null &&
+        RouteService.distanceBetween(_lastGeocodedPos!, pos) < 150.0) {
+      return;
+    }
+    _lastGeocodedPos = pos;
+    RouteService.reverseGeocode(pos).then((dest) {
+      if (mounted && dest.title.isNotEmpty && dest.title != 'Selected Location' && dest.title != 'Dropped Pin') {
+        setState(() {
+          _currentLocationDisplayName = dest.title;
+        });
+      }
+    }).catchError((_) {});
+  }
+
+  Future<void> _handleShareLocation(DrivingProvider provider) async {
+    LatLng? pos = provider.currentPosition != null
+        ? LatLng(provider.currentPosition!.latitude, provider.currentPosition!.longitude)
+        : null;
+
+    if (pos == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Acquiring GPS fix for sharing...'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      try {
+        final fix = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            timeLimit: Duration(seconds: 4),
+          ),
+        );
+        pos = LatLng(fix.latitude, fix.longitude);
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not acquire GPS position to share.')),
+          );
+        }
+        return;
+      }
+    }
+
+    final mapLink = 'https://maps.google.com/?q=${pos.latitude},${pos.longitude}';
+    final shareText = '📍 My live location on RoadMesh Navigation:\n$mapLink';
+    // ignore: deprecated_member_use
+    Share.share(shareText, subject: 'Live RoadMesh Geoposition');
   }
 
   /// Pre-warms custom vector markers for all vehicle categories.
@@ -133,6 +401,13 @@ class _DrivingScreenState extends State<DrivingScreen>
       );
     }
 
+    // Warm up Speed Camera & Hazard Ripple markers
+    _markerCache['speed_camera'] = await VehicleMarkerPainter.getSpeedCameraMarker(
+      speedLimit: _speedLimitKmh.toInt(),
+      note: 'You often skip it • Stay alert!',
+    );
+    _markerCache['hazard_ripple'] = await VehicleMarkerPainter.getHazardRippleMarker();
+
     if (mounted) {
       setState(() {});
     }
@@ -147,44 +422,39 @@ class _DrivingScreenState extends State<DrivingScreen>
     return 12742000 * math.asin(math.sqrt(a));
   }
 
-  /// Builds custom vector markers for driver, peers, and destination flag.
+  /// Builds custom vector markers for driver, peers, destination flag, and speed cameras.
   Set<Marker> _buildMarkers(DrivingProvider provider) {
     final markers = <Marker>{};
 
-    final egoLat = provider.currentPosition?.latitude;
-    final egoLng = provider.currentPosition?.longitude;
+    final (carPos, carHeading, carSpeed) = _resolveCarTelemetry(provider);
 
-    // 1. Ego (Driver) Custom Vehicle Marker
-    if (egoLat != null && egoLng != null) {
-      final egoKey = '${provider.vehicleType.name}_green_egoTrue';
-      final egoIcon = _markerCache[egoKey] ??
-          BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueCyan);
+    // 1. Ego (Driver) Custom Vehicle Marker (ALWAYS guaranteed to be present)
+    final egoKey = '${provider.vehicleType.name}_green_egoTrue';
+    final egoIcon = _markerCache[egoKey] ??
+        BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueCyan);
 
-      markers.add(
-        Marker(
-          markerId: const MarkerId('ego'),
-          position: LatLng(egoLat, egoLng),
-          icon: egoIcon,
-          rotation: provider.currentHeading,
-          flat: true,
-          anchor: const Offset(0.5, 0.5),
-          zIndexInt: 100,
-          infoWindow: InfoWindow(
-            title: '${provider.vehicleType.icon} Your ${provider.vehicleType.displayName}',
-            snippet:
-                '${provider.currentSpeed.toStringAsFixed(0)} km/h • Heading: ${provider.currentHeading.toStringAsFixed(0)}° • V2X Active',
-          ),
+    markers.add(
+      Marker(
+        markerId: const MarkerId('ego'),
+        position: carPos,
+        icon: egoIcon,
+        rotation: carHeading,
+        flat: true,
+        anchor: const Offset(0.5, 0.5),
+        zIndexInt: 999, // ALWAYS on top of route polylines and nearby vehicles!
+        infoWindow: InfoWindow(
+          title: '${provider.vehicleType.icon} Your ${provider.vehicleType.displayName}',
+          snippet:
+              '${carSpeed.toStringAsFixed(0)} km/h • Heading: ${carHeading.toStringAsFixed(0)}° • V2X Active',
         ),
-      );
-    }
+      ),
+    );
 
     // 2. Real Nearby Peers (Filtered by V2X Radar Range: 0 to 300m)
     if (_radarRangeMeters > 0) {
       for (final vehicle in provider.nearbyVehicles) {
-        if (egoLat != null && egoLng != null) {
-          final dist = _distanceBetween(egoLat, egoLng, vehicle.lat, vehicle.lng);
-          if (dist > _radarRangeMeters) continue;
-        }
+        final dist = _distanceBetween(carPos.latitude, carPos.longitude, vehicle.lat, vehicle.lng);
+        if (dist > _radarRangeMeters) continue;
 
         final alert = provider.activeAlerts
             .where((a) => a.vehicleId == vehicle.id)
@@ -249,95 +519,375 @@ class _DrivingScreenState extends State<DrivingScreen>
       );
     }
 
+    // 4. On-Road Speed Camera Alert Marker (Image 2)
+    if (_activeRoute != null && _activeRoute!.polylinePoints.isNotEmpty) {
+      final cameraIdx = math.min(10, _activeRoute!.polylinePoints.length - 1);
+      final cameraPos = _activeRoute!.polylinePoints[cameraIdx];
+      final cameraIcon = _markerCache['speed_camera'];
+      if (cameraIcon != null) {
+        markers.add(
+          Marker(
+            markerId: const MarkerId('nav_speed_camera'),
+            position: cameraPos,
+            icon: cameraIcon,
+            anchor: const Offset(0.5, 0.85),
+            zIndexInt: 95,
+          ),
+        );
+      }
+    }
+
+    // 5. Radar Hazard Ripple (Image 1)
+    if (provider.activeAlerts.isNotEmpty && _markerCache['hazard_ripple'] != null) {
+      final alertVehicle = provider.nearbyVehicles
+          .where((v) => v.id == provider.activeAlerts.first.vehicleId)
+          .firstOrNull;
+      if (alertVehicle != null) {
+        markers.add(
+          Marker(
+            markerId: const MarkerId('hazard_ripple'),
+            position: LatLng(alertVehicle.lat, alertVehicle.lng),
+            icon: _markerCache['hazard_ripple']!,
+            anchor: const Offset(0.5, 0.5),
+            zIndexInt: 60,
+          ),
+        );
+      }
+    }
+
     return markers;
   }
 
-  /// Builds navigation route polylines.
-  Set<Polyline> _buildPolylines() {
-    if (_activeRoute == null) return const <Polyline>{};
+  /// Builds navigation route polylines with forward green tracking anchored directly to the vehicle.
+  Set<Polyline> _buildPolylines(LatLng carPos) {
+    if (_activeRoute == null || _activeRoute!.polylinePoints.isEmpty) {
+      return const <Polyline>{};
+    }
 
-    return {
-      // Glow underlay polyline
+    final fullPoints = _activeRoute!.polylinePoints;
+    final polylines = <Polyline>{};
+
+    // Find the closest point index on the route to the car's current position
+    int closestIdx = 0;
+    double minD = double.infinity;
+    for (int i = 0; i < fullPoints.length; i++) {
+      final d = RouteService.distanceBetween(carPos, fullPoints[i]);
+      if (d < minD) {
+        minD = d;
+        closestIdx = i;
+      }
+    }
+
+    // Remaining forward route points: begins AT the car and tracks forward
+    final remainingPoints = <LatLng>[carPos];
+    for (int i = closestIdx + 1; i < fullPoints.length; i++) {
+      remainingPoints.add(fullPoints[i]);
+    }
+    if (remainingPoints.length < 2) {
+      remainingPoints.add(_activeRoute!.destination.location);
+    }
+
+    // 1. Glow underlay polyline (vibrant navigation green - tracks dynamically with car)
+    polylines.add(
       Polyline(
         polylineId: const PolylineId('nav_route_glow'),
-        points: _activeRoute!.polylinePoints,
-        color: AppColors.cyberBlue.withValues(alpha: 0.35),
-        width: 10,
+        points: remainingPoints,
+        color: AppColors.navRouteGreen.withValues(alpha: 0.35),
+        width: 14,
         jointType: JointType.round,
         startCap: Cap.roundCap,
         endCap: Cap.roundCap,
       ),
-      // Core navigation polyline
+    );
+
+    // 2. Primary core green route line (moving along with car)
+    polylines.add(
       Polyline(
         polylineId: const PolylineId('nav_route_core'),
-        points: _activeRoute!.polylinePoints,
-        color: AppColors.cyberBlue,
-        width: 5,
+        points: remainingPoints,
+        color: AppColors.navRouteGreen,
+        width: 7,
         jointType: JointType.round,
         startCap: Cap.roundCap,
         endCap: Cap.roundCap,
       ),
-    };
+    );
+
+    // 3. Traveled portion behind the car (subtle dimmed gray)
+    if (closestIdx > 0) {
+      final passedPoints = fullPoints.sublist(0, closestIdx + 1);
+      passedPoints.add(carPos);
+      polylines.add(
+        Polyline(
+          polylineId: const PolylineId('nav_route_passed'),
+          points: passedPoints,
+          color: Colors.grey.withValues(alpha: 0.35),
+          width: 5,
+          jointType: JointType.round,
+          startCap: Cap.roundCap,
+          endCap: Cap.roundCap,
+        ),
+      );
+    }
+
+    return polylines;
   }
 
   /// Clean map view: zero hardcoded circles!
   Set<Circle> _buildCircles(DrivingProvider provider) => const <Circle>{};
 
   /// Smoothly follows the driver in 2D/3D perspective (zoom 19.3 when navigating, 17.5 in free drive).
-  void _followDriver(DrivingProvider provider) {
-    if (!_isCameraFollowLocked || _mapController == null || provider.currentPosition == null) return;
+  void _followDriver(DrivingProvider provider, LatLng carPos, double carHeading) {
+    if (!_isCameraFollowLocked || _mapController == null) return;
 
     final targetZoom = _activeRoute != null ? 19.3 : 17.5;
 
-    _mapController!.animateCamera(
+    _animateCameraProgrammatically(
       CameraUpdate.newCameraPosition(
         CameraPosition(
-          target: LatLng(
-            provider.currentPosition!.latitude,
-            provider.currentPosition!.longitude,
-          ),
+          target: carPos,
           zoom: targetZoom,
-          bearing: provider.currentHeading,
+          bearing: carHeading,
           tilt: _is3DMode ? 38.0 : 0.0,
         ),
       ),
+      keepFollowLocked: true,
     );
   }
 
   /// Re-centers the camera smoothly onto the driver and locks tracking.
   void _recenterOnDriver(DrivingProvider provider) {
-    setState(() {
-      _isCameraFollowLocked = true;
-    });
-
-    final lat = provider.currentPosition?.latitude ?? 10.0538;
-    final lng = provider.currentPosition?.longitude ?? 76.6193;
+    final (carPos, carHeading, _) = _resolveCarTelemetry(provider);
     final targetZoom = _activeRoute != null ? 19.3 : 17.5;
 
-    _mapController?.animateCamera(
+    _animateCameraProgrammatically(
       CameraUpdate.newCameraPosition(
         CameraPosition(
-          target: LatLng(lat, lng),
+          target: carPos,
           zoom: targetZoom,
-          bearing: provider.currentHeading,
+          bearing: carHeading,
           tilt: _is3DMode ? 38.0 : 0.0,
         ),
       ),
+      keepFollowLocked: true,
     );
   }
 
   /// Resets map orientation directly to True North (0°).
   void _resetCompassNorth(DrivingProvider provider) {
-    final lat = provider.currentPosition?.latitude ?? 10.0538;
-    final lng = provider.currentPosition?.longitude ?? 76.6193;
+    final (carPos, _, _) = _resolveCarTelemetry(provider);
 
-    _mapController?.animateCamera(
+    _animateCameraProgrammatically(
       CameraUpdate.newCameraPosition(
         CameraPosition(
-          target: LatLng(lat, lng),
+          target: carPos,
           zoom: 17.5,
           bearing: 0.0,
           tilt: 0.0,
+        ),
+      ),
+      keepFollowLocked: false,
+    );
+  }
+
+  void _zoomIn() {
+    _animateCameraProgrammatically(CameraUpdate.zoomIn(), keepFollowLocked: false);
+  }
+
+  void _zoomOut() {
+    _animateCameraProgrammatically(CameraUpdate.zoomOut(), keepFollowLocked: false);
+  }
+
+  void _toggleDayNightTheme() {
+    setState(() {
+      _isDarkStyleActive = !_isDarkStyleActive;
+    });
+    if (_mapController != null && _currentMapType == MapType.normal) {
+      try {
+        // ignore: deprecated_member_use
+        _mapController!.setMapStyle(_isDarkStyleActive ? _darkMapStyle : _lightMapStyle);
+      } catch (_) {}
+    }
+  }
+
+  void _toggle3DMode(DrivingProvider provider) {
+    setState(() {
+      _is3DMode = !_is3DMode;
+    });
+    _recenterOnDriver(provider);
+  }
+
+  void _reportHazard() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: _isDarkStyleActive ? const Color(0xFF131C2E) : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'REPORT ROAD HAZARD',
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: _isDarkStyleActive ? Colors.white : AppColors.navTextDark,
+                letterSpacing: 0.5,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                _hazardOption(Icons.camera_alt_rounded, 'Speed Camera', Colors.red),
+                _hazardOption(Icons.warning_amber_rounded, 'Road Hazard', Colors.orange),
+                _hazardOption(Icons.traffic_rounded, 'Traffic Jam', Colors.amber),
+                _hazardOption(Icons.car_crash_rounded, 'Accident', Colors.redAccent),
+                _hazardOption(Icons.local_police_rounded, 'Police / Radar', Colors.blue),
+                _hazardOption(Icons.construction_rounded, 'Road Works', Colors.deepOrange),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _hazardOption(IconData icon, String label, Color color) {
+    return InkWell(
+      onTap: () {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_rounded, color: AppColors.safeGreen, size: 18),
+                const SizedBox(width: 8),
+                Text('Hazard reported to V2X Mesh: $label'),
+              ],
+            ),
+            backgroundColor: const Color(0xFF0F172A),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: 100,
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 24),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: _isDarkStyleActive ? Colors.white : AppColors.navTextDark,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showStepByStepSheet() {
+    if (_activeRoute == null || _activeRoute!.steps.isEmpty) return;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: _isDarkStyleActive ? const Color(0xFF131C2E) : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'TURN-BY-TURN DIRECTIONS',
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: _isDarkStyleActive ? Colors.white : AppColors.navTextDark,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: _activeRoute!.steps.length,
+                separatorBuilder: (_, __) => Divider(
+                  color: _isDarkStyleActive ? Colors.white12 : AppColors.navBorderLight,
+                ),
+                itemBuilder: (context, idx) {
+                  final s = _activeRoute!.steps[idx];
+                  return ListTile(
+                    leading: Icon(s.maneuver.icon, color: AppColors.navArrowBlue),
+                    title: Text(
+                      s.instruction,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: _isDarkStyleActive ? Colors.white : AppColors.navTextDark,
+                      ),
+                    ),
+                    subtitle: Text(
+                      '${s.distanceMeters.round()} m • ${s.streetName}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: _isDarkStyleActive ? AppColors.textMuted : AppColors.navTextMutedLight,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -400,15 +950,16 @@ class _DrivingScreenState extends State<DrivingScreen>
 
   /// Opens destination search sheet to start turn-by-turn routing anywhere.
   void _showDestinationPicker(DrivingProvider provider) {
-    final originLat = provider.currentPosition?.latitude ?? 10.0538;
-    final originLng = provider.currentPosition?.longitude ?? 76.6193;
+    final origin = provider.currentPosition != null
+        ? LatLng(provider.currentPosition!.latitude, provider.currentPosition!.longitude)
+        : null;
 
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (ctx) => DestinationPickerSheet(
-        userLocation: LatLng(originLat, originLng),
+        userLocation: origin,
         onDestinationSelected: (dest) {
           _startNavigationTo(dest, provider);
         },
@@ -416,10 +967,24 @@ class _DrivingScreenState extends State<DrivingScreen>
     );
   }
 
-  /// Starts turn-by-turn navigation to any destination using real OSRM road network routing.
+  /// Starts turn-by-turn navigation to any destination from the user's real GPS position.
   Future<void> _startNavigationTo(NavDestination dest, DrivingProvider provider) async {
-    final originLat = provider.currentPosition?.latitude ?? 10.0538;
-    final originLng = provider.currentPosition?.longitude ?? 76.6193;
+    LatLng? origin;
+    if (provider.currentPosition != null) {
+      origin = LatLng(provider.currentPosition!.latitude, provider.currentPosition!.longitude);
+    } else {
+      try {
+        final fix = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            timeLimit: Duration(seconds: 4),
+          ),
+        );
+        origin = LatLng(fix.latitude, fix.longitude);
+      } catch (_) {
+        origin = _defaultCenter;
+      }
+    }
 
     setState(() {
       _isCalculatingRoute = true;
@@ -428,7 +993,7 @@ class _DrivingScreenState extends State<DrivingScreen>
 
     try {
       final route = await RouteService.calculateRoute(
-        origin: LatLng(originLat, originLng),
+        origin: origin,
         destination: dest,
       );
 
@@ -448,7 +1013,7 @@ class _DrivingScreenState extends State<DrivingScreen>
         }
       });
 
-      // Zoom in close to the road and vehicle (Image 1, zoom 19.3) with cockpit perspective
+      // Camera focuses directly on vehicle's current position and heading
       double navBearing = provider.currentHeading;
       if (navBearing <= 0 && route.polylinePoints.length >= 2) {
         final p1 = route.polylinePoints[0];
@@ -458,28 +1023,28 @@ class _DrivingScreenState extends State<DrivingScreen>
         navBearing = (math.atan2(dLng, dLat) * 180 / math.pi) % 360;
       }
 
-      _mapController?.animateCamera(
+      _animateCameraProgrammatically(
         CameraUpdate.newCameraPosition(
           CameraPosition(
-            target: LatLng(originLat, originLng),
+            target: origin,
             zoom: 19.3,
             bearing: navBearing,
             tilt: _is3DMode ? 38.0 : 0.0,
           ),
         ),
+        keepFollowLocked: true,
       );
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isCalculatingRoute = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Navigation error: $e'),
-            backgroundColor: AppColors.dangerRed,
-          ),
-        );
-      }
+      if (!mounted) return;
+      setState(() {
+        _isCalculatingRoute = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Navigation error: $e'),
+          backgroundColor: AppColors.dangerRed,
+        ),
+      );
     }
   }
 
@@ -505,9 +1070,10 @@ class _DrivingScreenState extends State<DrivingScreen>
         _droppedPinDestination = geocoded;
       });
 
-      // Smoothly center the map directly on the landmark icon!
-      _mapController?.animateCamera(
+      // Smoothly center the map directly on the landmark icon
+      _animateCameraProgrammatically(
         CameraUpdate.newLatLng(geocoded.location),
+        keepFollowLocked: false,
       );
     }
   }
@@ -547,23 +1113,22 @@ class _DrivingScreenState extends State<DrivingScreen>
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: const Color(0xFF0D1526),
+          backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
-            side: const BorderSide(color: AppColors.glassBorder),
           ),
           title: const Row(
             children: [
-              Icon(Icons.speed_rounded, color: AppColors.cyberBlue, size: 22),
+              Icon(Icons.speed_rounded, color: Color(0xFF2563EB), size: 24),
               SizedBox(width: 10),
               Text(
                 'ROAD SPEED LIMIT',
                 style: TextStyle(
-                  fontFamily: 'Orbitron',
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                  letterSpacing: 1.0,
+                  fontFamily: 'Inter',
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF0F172A),
+                  letterSpacing: 0.5,
                 ),
               ),
             ],
@@ -576,12 +1141,10 @@ class _DrivingScreenState extends State<DrivingScreen>
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.cyberBlue.withValues(alpha: 0.1),
+                  color: const Color(0xFFF8FAFC),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: _isAutoSpeedLimit
-                        ? AppColors.cyberBlue.withValues(alpha: 0.4)
-                        : Colors.white12,
+                    color: const Color(0xFFE2E8F0),
                   ),
                 ),
                 child: Column(
@@ -594,17 +1157,17 @@ class _DrivingScreenState extends State<DrivingScreen>
                           height: 8,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: _isAutoSpeedLimit ? AppColors.safeGreen : Colors.amber,
+                            color: _isAutoSpeedLimit ? const Color(0xFF10B981) : Colors.amber,
                           ),
                         ),
                         const SizedBox(width: 6),
                         Text(
                           _isAutoSpeedLimit ? 'AUTO-DETECTED ROAD ZONE' : 'MANUAL OVERRIDE ACTIVE',
                           style: TextStyle(
-                            fontFamily: 'Orbitron',
+                            fontFamily: 'Inter',
                             fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: _isAutoSpeedLimit ? AppColors.safeGreen : Colors.amber,
+                            fontWeight: FontWeight.w800,
+                            color: _isAutoSpeedLimit ? const Color(0xFF10B981) : Colors.amber.shade800,
                           ),
                         ),
                       ],
@@ -613,19 +1176,20 @@ class _DrivingScreenState extends State<DrivingScreen>
                     Text(
                       _currentSpeedZoneName,
                       style: const TextStyle(
-                        color: Colors.white,
+                        fontFamily: 'Inter',
+                        color: Color(0xFF0F172A),
                         fontSize: 13,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       'Designated Limit: ${_speedLimitKmh.toInt()} km/h',
                       style: const TextStyle(
-                        fontFamily: 'Orbitron',
-                        color: AppColors.cyberBlue,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+                        fontFamily: 'Inter',
+                        color: Color(0xFF2563EB),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                   ],
@@ -634,7 +1198,7 @@ class _DrivingScreenState extends State<DrivingScreen>
               const SizedBox(height: 12),
               const Text(
                 'Road speed limits are automatically determined from road classification (College/School: 30 km/h, Residential: 40 km/h, Urban: 50 km/h, Highway: 70-80 km/h).',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                style: TextStyle(fontFamily: 'Inter', color: Color(0xFF64748B), fontSize: 11),
               ),
               const SizedBox(height: 14),
 
@@ -644,11 +1208,12 @@ class _DrivingScreenState extends State<DrivingScreen>
                 children: [
                   const Text(
                     'Auto-Detect From Road',
-                    style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                    style: TextStyle(fontFamily: 'Inter', color: Color(0xFF0F172A), fontSize: 13, fontWeight: FontWeight.w700),
                   ),
                   Switch(
                     value: _isAutoSpeedLimit,
-                    activeTrackColor: AppColors.cyberBlue,
+                    activeTrackColor: const Color(0xFF2563EB),
+                    activeThumbColor: Colors.white,
                     onChanged: (val) {
                       setState(() {
                         _isAutoSpeedLimit = val;
@@ -666,10 +1231,10 @@ class _DrivingScreenState extends State<DrivingScreen>
               const Text(
                 'MANUAL OVERRIDE:',
                 style: TextStyle(
-                  fontFamily: 'Orbitron',
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textSecondary,
+                  fontFamily: 'Inter',
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF64748B),
                 ),
               ),
               const SizedBox(height: 8),
@@ -681,10 +1246,11 @@ class _DrivingScreenState extends State<DrivingScreen>
                   return ChoiceChip(
                     label: Text('$speed km/h'),
                     selected: isSelected,
-                    selectedColor: AppColors.cyberBlue,
-                    backgroundColor: Colors.white.withValues(alpha: 0.06),
+                    selectedColor: const Color(0xFF2563EB),
+                    backgroundColor: const Color(0xFFF1F5F9),
                     labelStyle: TextStyle(
-                      color: isSelected ? Colors.black : Colors.white,
+                      fontFamily: 'Inter',
+                      color: isSelected ? Colors.white : const Color(0xFF334155),
                       fontWeight: FontWeight.w700,
                       fontSize: 11,
                     ),
@@ -703,10 +1269,11 @@ class _DrivingScreenState extends State<DrivingScreen>
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Show Badge on Cockpit', style: TextStyle(color: Colors.white, fontSize: 12)),
+                  const Text('Show Badge on Cockpit', style: TextStyle(fontFamily: 'Inter', color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.w600)),
                   Switch(
                     value: _showSpeedLimitSign,
-                    activeTrackColor: AppColors.cyberBlue,
+                    activeTrackColor: const Color(0xFF2563EB),
+                    activeThumbColor: Colors.white,
                     onChanged: (val) {
                       setState(() {
                         _showSpeedLimitSign = val;
@@ -721,180 +1288,9 @@ class _DrivingScreenState extends State<DrivingScreen>
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('CLOSE', style: TextStyle(color: AppColors.cyberBlue, fontWeight: FontWeight.bold)),
+              child: const Text('CLOSE', style: TextStyle(fontFamily: 'Inter', color: Color(0xFF2563EB), fontWeight: FontWeight.w800)),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  /// Google Maps-style confirmation card when a pin is dropped on the map.
-  Widget _buildDroppedPinCard(DrivingProvider provider) {
-    final originLat = provider.currentPosition?.latitude ?? 10.0538;
-    final originLng = provider.currentPosition?.longitude ?? 76.6193;
-    final dist = RouteService.distanceBetween(
-      LatLng(originLat, originLng),
-      _droppedPinDestination!.location,
-    );
-    final distStr = dist >= 1000
-        ? '${(dist / 1000).toStringAsFixed(1)} km'
-        : '${dist.toStringAsFixed(0)} m';
-    final estMin = (dist / 500).round().clamp(1, 999);
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            color: const Color(0xFA090E1A),
-            border: Border.all(color: AppColors.cyberBlue.withValues(alpha: 0.5), width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.6),
-                blurRadius: 20,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: AppColors.dangerRed.withValues(alpha: 0.2),
-                      border: Border.all(color: AppColors.dangerRed),
-                    ),
-                    child: const Icon(Icons.location_on_rounded, color: AppColors.dangerRed, size: 20),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _droppedPinDestination!.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          _droppedPinDestination!.subtitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: AppColors.textMuted,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () => setState(() => _droppedPinDestination = null),
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white.withValues(alpha: 0.08),
-                      ),
-                      child: const Icon(Icons.close_rounded, color: Colors.white70, size: 16),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      color: Colors.white.withValues(alpha: 0.06),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.directions_car_rounded, color: AppColors.cyberBlue, size: 14),
-                        const SizedBox(width: 4),
-                        Text(
-                          '$distStr • ~$estMin min',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Spacer(),
-                  GestureDetector(
-                    onTap: _isCalculatingRoute
-                        ? null
-                        : () => _startNavigationTo(_droppedPinDestination!, provider),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        color: AppColors.cyberBlue,
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.cyberBlue.withValues(alpha: 0.4),
-                            blurRadius: 10,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (_isCalculatingRoute)
-                            const SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.black,
-                              ),
-                            )
-                          else ...[
-                            const Icon(Icons.navigation_rounded, color: Colors.black, size: 16),
-                            const SizedBox(width: 6),
-                            const Text(
-                              'START NAVIGATION',
-                              style: TextStyle(
-                                fontFamily: 'Orbitron',
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.black,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -905,20 +1301,21 @@ class _DrivingScreenState extends State<DrivingScreen>
       _activeRoute = null;
       _currentStepIndex = 0;
       _droppedPinDestination = null;
+      _isCameraFollowLocked = true;
     });
 
     final provider = context.read<DrivingProvider>();
-    final lat = provider.currentPosition?.latitude ?? 10.0538;
-    final lng = provider.currentPosition?.longitude ?? 76.6193;
-    _mapController?.animateCamera(
+    final (carPos, carHeading, _) = _resolveCarTelemetry(provider);
+    _animateCameraProgrammatically(
       CameraUpdate.newCameraPosition(
         CameraPosition(
-          target: LatLng(lat, lng),
+          target: carPos,
           zoom: 17.5,
-          bearing: provider.currentHeading,
+          bearing: carHeading,
           tilt: _is3DMode ? 35.0 : 0.0,
         ),
       ),
+      keepFollowLocked: true,
     );
   }
 
@@ -930,16 +1327,15 @@ class _DrivingScreenState extends State<DrivingScreen>
         return Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: const Color(0xFF0D1526).withValues(alpha: 0.95),
+            color: Colors.white,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            border: Border.all(
-              color: alert != null
-                  ? (alert.riskLevel == RiskLevel.red
-                      ? AppColors.dangerRed
-                      : AppColors.warningAmber)
-                  : AppColors.cyberBlue.withValues(alpha: 0.3),
-              width: 1.5,
-            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.12),
+                blurRadius: 20,
+                offset: const Offset(0, -4),
+              ),
+            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -949,8 +1345,8 @@ class _DrivingScreenState extends State<DrivingScreen>
                 children: [
                   Container(
                     padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: AppColors.cyberBlue.withValues(alpha: 0.15),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFEFF6FF),
                       shape: BoxShape.circle,
                     ),
                     child: Text(vehicle.vehicleType.icon, style: const TextStyle(fontSize: 24)),
@@ -963,18 +1359,19 @@ class _DrivingScreenState extends State<DrivingScreen>
                         Text(
                           vehicle.vehicleType.displayName.toUpperCase(),
                           style: const TextStyle(
-                            fontFamily: 'Orbitron',
+                            fontFamily: 'Inter',
                             fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A),
                           ),
                         ),
                         Text(
                           'NODE: ${vehicle.id.toUpperCase()}',
                           style: const TextStyle(
+                            fontFamily: 'Inter',
                             fontSize: 11,
-                            color: AppColors.textMuted,
-                            letterSpacing: 1.2,
+                            color: Color(0xFF64748B),
+                            letterSpacing: 0.5,
                           ),
                         ),
                       ],
@@ -1008,20 +1405,21 @@ class _DrivingScreenState extends State<DrivingScreen>
         Text(
           label,
           style: const TextStyle(
+            fontFamily: 'Inter',
             fontSize: 10,
-            color: AppColors.textMuted,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 1.2,
+            color: Color(0xFF64748B),
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.8,
           ),
         ),
         const SizedBox(height: 4),
         Text(
           value,
           style: const TextStyle(
-            fontFamily: 'Orbitron',
+            fontFamily: 'Inter',
             fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: AppColors.cyberBlue,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF2563EB),
           ),
         ),
       ],
@@ -1054,15 +1452,16 @@ class _DrivingScreenState extends State<DrivingScreen>
           _riskPulseController.reset();
         }
 
-        if (provider.currentPosition != null && _isCameraFollowLocked) {
+        final (carPos, carHeading, carSpeed) = _resolveCarTelemetry(provider);
+
+        if (_isCameraFollowLocked && _isMapReady) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            _followDriver(provider);
+            _followDriver(provider, carPos, carHeading);
           });
         }
 
-        final centerLat = provider.currentPosition?.latitude ?? 10.0538;
-        final centerLng = provider.currentPosition?.longitude ?? 76.6193;
-        final isOverspeeding = provider.currentSpeed > _speedLimitKmh;
+        final centerLat = carPos.latitude;
+        final centerLng = carPos.longitude;
 
         // Automatic turn-by-turn maneuver progress tracking
         NavigationStep? currentStep;
@@ -1071,10 +1470,8 @@ class _DrivingScreenState extends State<DrivingScreen>
           final curIdx = _currentStepIndex.clamp(0, _activeRoute!.steps.length - 1);
           currentStep = _activeRoute!.steps[curIdx];
 
-          final userLat = provider.currentPosition?.latitude ?? centerLat;
-          final userLng = provider.currentPosition?.longitude ?? centerLng;
           distanceToNextTurn = RouteService.distanceBetween(
-            LatLng(userLat, userLng),
+            carPos,
             currentStep.location,
           );
 
@@ -1098,7 +1495,7 @@ class _DrivingScreenState extends State<DrivingScreen>
         }
 
         return Scaffold(
-          backgroundColor: AppColors.deepSpace,
+          backgroundColor: _isDarkStyleActive ? AppColors.deepSpace : AppColors.navBgLight,
           body: Stack(
             children: [
               // ─── 1. Google Map with Active Layers & Polylines ─────
@@ -1113,14 +1510,23 @@ class _DrivingScreenState extends State<DrivingScreen>
                 buildingsEnabled: true,
                 onMapCreated: (controller) {
                   _mapController = controller;
-                  if (_isDarkStyleActive && _currentMapType == MapType.normal) {
+                  if (mounted && !_isMapReady) {
+                    setState(() {
+                      _isMapReady = true;
+                    });
+                  }
+                  if (_currentMapType == MapType.normal) {
                     try {
                       // ignore: deprecated_member_use
-                      controller.setMapStyle(_darkMapStyle);
+                      controller.setMapStyle(_isDarkStyleActive ? _darkMapStyle : _lightMapStyle);
                     } catch (_) {}
                   }
                 },
                 onCameraMoveStarted: () {
+                  if (_isProgrammaticCameraMove) {
+                    _isProgrammaticCameraMove = false;
+                    return;
+                  }
                   if (_isCameraFollowLocked) {
                     setState(() {
                       _isCameraFollowLocked = false;
@@ -1130,14 +1536,48 @@ class _DrivingScreenState extends State<DrivingScreen>
                 onTap: (pos) => _handleMapTap(pos, provider),
                 onLongPress: (pos) => _handleMapTap(pos, provider),
                 markers: _buildMarkers(provider),
-                polylines: _buildPolylines(),
+                polylines: _buildPolylines(carPos),
                 circles: _buildCircles(provider),
                 myLocationEnabled: false,
                 myLocationButtonEnabled: false,
                 zoomControlsEnabled: false,
                 mapToolbarEnabled: false,
-                compassEnabled: true,
+                compassEnabled: false,
               ),
+
+              // ─── Map Loading Placeholder Overlay ─────────────────
+              if (!_isMapReady)
+                Positioned.fill(
+                  child: Container(
+                    color: _isDarkStyleActive ? AppColors.deepSpace : const Color(0xFFEDF1F5),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const SizedBox(
+                            width: 32,
+                            height: 32,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              valueColor: AlwaysStoppedAnimation<Color>(AppColors.navArrowBlue),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          Text(
+                            'CALIBRATING ROAD NAVIGATION...',
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.2,
+                              color: _isDarkStyleActive ? Colors.white70 : AppColors.navTextDark,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
 
               // ─── 2. Tactical Hazard Glow Border ───────────────────
               if (provider.currentRiskLevel != RiskLevel.green)
@@ -1165,389 +1605,116 @@ class _DrivingScreenState extends State<DrivingScreen>
                   },
                 ),
 
-              // ─── 3. Top HUD Status Bar with Interactive Compass ────
-              Positioned(
-                top: MediaQuery.of(context).padding.top + 8,
-                left: 16,
-                right: 16,
-                child: DrivingStatusBar(
-                  isConnected: provider.isConnected,
-                  speed: provider.currentSpeed,
-                  heading: provider.currentHeading,
-                  nearbyCount: _radarRangeMeters > 0 ? provider.nearbyVehicles.length : 0,
-                  riskLevel: provider.currentRiskLevel,
-                  vehicleType: provider.vehicleType,
-                  onCompassTap: () => _resetCompassNorth(provider),
-                  onConnectionTap: () => _handleConnectionTap(provider),
+              // ─── 3. Top Geoposition Share Banner (Image 1) ─────────
+              if (_showGeopositionBanner)
+                Positioned(
+                  top: MediaQuery.of(context).padding.top + 8,
+                  left: 0,
+                  right: 0,
+                  child: GeopositionShareBanner(
+                    isDark: _isDarkStyleActive,
+                    latitude: centerLat,
+                    longitude: centerLng,
+                    onDismiss: () => setState(() => _showGeopositionBanner = false),
+                    onShare: () => _handleShareLocation(provider),
+                  ),
                 ),
-              ),
 
-              // ─── 4. Active Turn-by-Turn Navigation Banner ─────────
+              // ─── 4. Top-Left Turn Maneuver Card (Image 2) ──────────
               if (_activeRoute != null && currentStep != null)
                 Positioned(
-                  top: MediaQuery.of(context).padding.top + 76,
+                  top: MediaQuery.of(context).padding.top + (_showGeopositionBanner ? 84 : 12),
                   left: 16,
-                  right: 16,
-                  child: NavigationBanner(
-                    route: _activeRoute!,
-                    currentStep: currentStep,
-                    distanceToNextTurn: distanceToNextTurn,
+                  child: ManeuverTopHud(
+                    step: currentStep,
+                    distanceToTurnMeters: distanceToNextTurn,
+                    isDark: _isDarkStyleActive,
                     onCancel: _cancelNavigation,
                   ),
                 ),
 
-              // ─── 4b. Real Road Route Calculating Indicator ───────
-              if (_isCalculatingRoute)
-                Positioned(
-                  top: MediaQuery.of(context).padding.top + 76,
-                  left: 24,
-                  right: 24,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: const Color(0xEE090E1A),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: AppColors.cyberBlue),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.cyberBlue.withValues(alpha: 0.3),
-                          blurRadius: 12,
-                        ),
-                      ],
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.cyberBlue,
-                          ),
-                        ),
-                        SizedBox(width: 10),
-                        Text(
-                          'CALCULATING OPTIMAL ROUTE...',
-                          style: TextStyle(
-                            fontFamily: 'Orbitron',
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.cyberBlue,
-                            letterSpacing: 1.0,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-              // ─── 5. Radar Metric & Automotive Control Dock ────────
+              // ─── 5. Top-Right Dual Speedometer Gauge (Image 2) ─────
               Positioned(
-                top: _activeRoute != null
-                    ? MediaQuery.of(context).padding.top + 152
-                    : MediaQuery.of(context).padding.top + 76,
-                left: 12,
-                right: 12,
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  physics: const BouncingScrollPhysics(),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // Tappable V2X Radar Range Badge (0m OFF to 300m)
-                      GestureDetector(
-                        onTap: _openRadarRangeDialog,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                          decoration: BoxDecoration(
-                            color: const Color(0xEE0A0F1D),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: _radarRangeMeters == 0
-                                  ? AppColors.dangerRed.withValues(alpha: 0.5)
-                                  : AppColors.cyberBlue.withValues(alpha: 0.4),
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: (_radarRangeMeters == 0 ? AppColors.dangerRed : AppColors.cyberBlue)
-                                    .withValues(alpha: 0.15),
-                                blurRadius: 8,
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 7,
-                                height: 7,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: _radarRangeMeters == 0 ? AppColors.dangerRed : AppColors.cyberBlue,
-                                ),
-                              ),
-                              const SizedBox(width: 7),
-                              Text(
-                                _radarRangeMeters == 0
-                                    ? 'V2X RADAR: OFF'
-                                    : 'V2X RADAR: ${_radarRangeMeters}m',
-                                style: TextStyle(
-                                  fontFamily: 'Orbitron',
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  color: _radarRangeMeters == 0 ? AppColors.dangerRed : AppColors.cyberBlue,
-                                  letterSpacing: 0.8,
-                                ),
-                              ),
-                              const SizedBox(width: 5),
-                              const Icon(
-                                Icons.tune_rounded,
-                                size: 12,
-                                color: AppColors.textSecondary,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-
-                      // Navigation Search, Layer Picker & Re-center Actions
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Navigate Button
-                          GestureDetector(
-                            onTap: () => _showDestinationPicker(provider),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                              decoration: BoxDecoration(
-                                color: const Color(0xEE0A0F1D),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: _activeRoute != null ? AppColors.cyberBlue : AppColors.glassBorder,
-                                  width: 1.2,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.search_rounded,
-                                    color: _activeRoute != null ? AppColors.cyberBlue : Colors.white,
-                                    size: 15,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'ROUTE',
-                                    style: TextStyle(
-                                      fontFamily: 'Orbitron',
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w700,
-                                      color: _activeRoute != null ? AppColors.cyberBlue : Colors.white,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-
-                          // Map Layer Picker Button
-                          GestureDetector(
-                            onTap: _showMapLayerSheet,
-                            child: Container(
-                              width: 34,
-                              height: 34,
-                              decoration: BoxDecoration(
-                                color: const Color(0xEE0A0F1D),
-                                shape: BoxShape.circle,
-                                border: Border.all(color: AppColors.glassBorder, width: 1.2),
-                              ),
-                              child: const Icon(Icons.layers_outlined, color: Colors.white, size: 17),
-                            ),
-                          ),
-
-                          // Re-center Button
-                          if (!_isCameraFollowLocked) ...[
-                            const SizedBox(width: 8),
-                            GestureDetector(
-                              onTap: () => _recenterOnDriver(provider),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                                decoration: BoxDecoration(
-                                  color: AppColors.cyberBlue.withValues(alpha: 0.25),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: AppColors.cyberBlue, width: 1.4),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: AppColors.cyberBlue.withValues(alpha: 0.35),
-                                      blurRadius: 10,
-                                    ),
-                                  ],
-                                ),
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.my_location_rounded, size: 14, color: AppColors.cyberBlue),
-                                    SizedBox(width: 4),
-                                    Text(
-                                      'RE-CENTER',
-                                      style: TextStyle(
-                                        fontFamily: 'Orbitron',
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppColors.cyberBlue,
-                                        letterSpacing: 0.8,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ],
-                  ),
+                top: MediaQuery.of(context).padding.top + (_showGeopositionBanner ? 84 : 12),
+                right: 16,
+                child: SpeedometerTopHud(
+                  currentSpeed: carSpeed,
+                  speedLimit: _speedLimitKmh,
+                  isDark: _isDarkStyleActive,
+                  onTap: _showSpeedLimitDialog,
                 ),
               ),
 
-              // ─── 6. Speed Limit Sign (Bottom Left Floating Badge - Tappable) ─
-              if (_showSpeedLimitSign)
+              // ─── 6. Lane Guidance Overlay on Road (Image 1) ────────
+              if (_activeRoute != null)
                 Positioned(
-                  bottom: 36,
+                  top: MediaQuery.of(context).padding.top + (_showGeopositionBanner ? 154 : 82),
                   left: 16,
-                  child: GestureDetector(
-                    onTap: _showSpeedLimitDialog,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: isOverspeeding ? AppColors.dangerRed : const Color(0xFFD32F2F),
-                              width: 4,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: isOverspeeding
-                                    ? AppColors.dangerRed.withValues(alpha: 0.5)
-                                    : Colors.black26,
-                                blurRadius: isOverspeeding ? 14 : 8,
-                              ),
-                            ],
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            _speedLimitKmh.toInt().toString(),
-                            style: const TextStyle(
-                              fontFamily: 'Orbitron',
-                              fontSize: 14,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.black87,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                          decoration: BoxDecoration(
-                            color: const Color(0xDD0D1526),
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(
-                              color: _isAutoSpeedLimit
-                                  ? AppColors.cyberBlue.withValues(alpha: 0.5)
-                                  : Colors.white24,
-                              width: 0.5,
-                            ),
-                          ),
-                          child: Text(
-                            _isAutoSpeedLimit ? 'ZONE' : 'LIMIT',
-                            style: TextStyle(
-                              fontFamily: 'Orbitron',
-                              fontSize: 7.5,
-                              fontWeight: FontWeight.w700,
-                              color: _isAutoSpeedLimit ? AppColors.cyberBlue : Colors.white70,
-                              letterSpacing: 0.8,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                  child: LaneGuidanceOverlay(
+                    laneCount: 3,
+                    recommendedLane: currentStep?.maneuver == ManeuverType.turnLeft
+                        ? 0
+                        : (currentStep?.maneuver == ManeuverType.turnRight ? 2 : 1),
+                    hasTrafficLight: true,
+                    zoneBadge: '${_speedLimitKmh.toInt()}',
                   ),
                 ),
 
-              // ─── 7. Warning Overlay (Active Hazards) ──────────────
+              // ─── 7. Right Vertical Floating Map Dock (Images 1 & 2) ─
+              Positioned(
+                top: MediaQuery.of(context).padding.top + (_showGeopositionBanner ? 160 : 88),
+                right: 16,
+                child: FloatingMapDock(
+                  isDark: _isDarkStyleActive,
+                  is3D: _is3DMode,
+                  isCameraLocked: _isCameraFollowLocked,
+                  onZoomIn: _zoomIn,
+                  onZoomOut: _zoomOut,
+                  onReportHazard: _reportHazard,
+                  onToggleTheme: _toggleDayNightTheme,
+                  onToggle3D: () => _toggle3DMode(provider),
+                  onResetCompass: () => _resetCompassNorth(provider),
+                  onRecenter: () => _recenterOnDriver(provider),
+                ),
+              ),
+
+              // ─── 8. Warning Overlay (Active Hazards) ──────────────
               if (provider.activeAlerts.isNotEmpty && _radarRangeMeters > 0)
                 Positioned(
-                  bottom: 100,
+                  bottom: 96,
                   left: 16,
                   right: 16,
                   child: WarningOverlay(alerts: provider.activeAlerts),
                 ),
 
-              // ─── 7b. Dropped Pin "Navigate Here" Bottom Card ─────
-              if (_droppedPinDestination != null && _activeRoute == null)
-                Positioned(
-                  bottom: 96,
-                  left: 16,
-                  right: 16,
-                  child: _buildDroppedPinCard(provider),
-                ),
-
-              // ─── 8. End Session Button ────────────────────────────
+              // ─── 9. Floating Bottom Capsule Pill Bar & Route Sheet ───
               Positioned(
-                bottom: 36,
+                bottom: 24,
                 left: 0,
                 right: 0,
-                child: Center(
-                  child: GestureDetector(
-                    onTap: _stopDriving,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xEE0A0F1D),
-                        borderRadius: BorderRadius.circular(30),
-                        border: Border.all(
-                          color: AppColors.dangerRed.withValues(alpha: 0.65),
-                          width: 1.5,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.dangerRed.withValues(alpha: 0.25),
-                            blurRadius: 16,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.stop_circle_outlined,
-                            color: AppColors.dangerRed,
-                            size: 20,
-                          ),
-                          SizedBox(width: 8),
-                          Text(
-                            'END SESSION',
-                            style: TextStyle(
-                              fontFamily: 'Orbitron',
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                              letterSpacing: 1.6,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                child: NavFloatingPillBar(
+                  isDark: _isDarkStyleActive,
+                  activeRoute: _activeRoute,
+                  previewDestination: _droppedPinDestination,
+                  currentSpeed: carSpeed,
+                  nearbyCount: _radarRangeMeters > 0 ? provider.nearbyVehicles.length : 0,
+                  isConnected: provider.isConnected,
+                  onConnectionTap: () => _handleConnectionTap(provider),
+                  onSearchTap: () => _showDestinationPicker(provider),
+                  onStartNavigation: () {
+                    if (_droppedPinDestination != null) {
+                      _startNavigationTo(_droppedPinDestination!, provider);
+                    } else if (_activeRoute == null) {
+                      _showDestinationPicker(provider);
+                    }
+                  },
+                  onCancelNavigation: _cancelNavigation,
+                  onStepByStepTap: _showStepByStepSheet,
+                  onFilterTap: _showMapLayerSheet,
+                  onRadarRangeTap: _openRadarRangeDialog,
+                  onExitCockpit: _stopDriving,
+                  currentLocationName: _currentLocationDisplayName,
+                  onShareTap: () => _handleShareLocation(provider),
                 ),
               ),
             ],

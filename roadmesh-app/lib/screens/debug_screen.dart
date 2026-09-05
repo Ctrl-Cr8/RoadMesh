@@ -32,10 +32,10 @@ class _DebugScreenState extends State<DebugScreen> {
         title: const Text(
           'DEBUG CONSOLE',
           style: TextStyle(
-            fontFamily: 'Orbitron',
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 3,
+            fontFamily: 'Inter',
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 2,
             color: AppColors.dangerRed,
           ),
         ),
@@ -272,11 +272,11 @@ class _ActionButton extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontFamily: 'Orbitron',
+                fontFamily: 'Inter',
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
                 color: color,
-                letterSpacing: 1.5,
+                letterSpacing: 1.2,
               ),
             ),
           ],

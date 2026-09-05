@@ -20,10 +20,10 @@ class StatsScreen extends StatelessWidget {
         title: const Text(
           'SESSION STATS',
           style: TextStyle(
-            fontFamily: 'Orbitron',
+            fontFamily: 'Inter',
             fontSize: 14,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 3,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.5,
             color: AppColors.textPrimary,
           ),
         ),
@@ -304,9 +304,9 @@ class _MetricCard extends StatelessWidget {
                   Text(
                     value,
                     style: TextStyle(
-                      fontFamily: 'Orbitron',
+                      fontFamily: 'Inter',
                       fontSize: 24,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w800,
                       color: color,
                     ),
                   ),
@@ -356,8 +356,8 @@ class _AlertBar extends StatelessWidget {
               '$count',
               style: TextStyle(
                 fontSize: 13,
-                fontWeight: FontWeight.w700,
-                fontFamily: 'Orbitron',
+                fontWeight: FontWeight.w800,
+                fontFamily: 'Inter',
                 color: color,
               ),
             ),
@@ -406,11 +406,11 @@ class _GlassBadge extends StatelessWidget {
               Text(
                 label,
                 style: TextStyle(
-                  fontFamily: 'Orbitron',
+                  fontFamily: 'Inter',
                   fontSize: 16,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w800,
                   color: color,
-                  letterSpacing: 2,
+                  letterSpacing: 1.2,
                 ),
               ),
             ],

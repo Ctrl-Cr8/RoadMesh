@@ -16,6 +16,7 @@ class LocationService {
       StreamController<Position>.broadcast();
 
   Position? _lastPosition;
+  Position? get lastPosition => _lastPosition;
   final List<double> _speedBuffer = [];
   static const int _speedBufferSize = 3;
 
@@ -24,27 +25,65 @@ class LocationService {
 
   Stream<Position> get positionStream => _positionController.stream;
 
-  /// Request location permission and start continuous GPS tracking.
+  /// Request location permission and start continuous GPS tracking from the user's real location.
   Future<void> startTracking() async {
-    final permission = await _requestPermission();
-    if (!permission) {
-      throw Exception('Location permission denied. Please enable it in Settings.');
+    bool hasPermission = false;
+    try {
+      hasPermission = await _requestPermission();
+    } catch (e) {
+      AppLogger.warning('Permission check exception: $e');
     }
 
+    if (!hasPermission) {
+      AppLogger.warning('GPS permission not granted.');
+      return;
+    }
+
+    // 1. Immediately fetch last known GPS position for instant 0ms lock
+    try {
+      final lastKnown = await Geolocator.getLastKnownPosition();
+      if (lastKnown != null) {
+        AppLogger.info('Retrieved real last known GPS position: ${lastKnown.latitude}, ${lastKnown.longitude}');
+        _handlePosition(lastKnown);
+      }
+    } catch (e) {
+      AppLogger.warning('Failed to get last known GPS position: $e');
+    }
+
+    // 2. Actively request current high-accuracy fix in background
+    Geolocator.getCurrentPosition(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        timeLimit: Duration(seconds: 8),
+      ),
+    ).then((pos) {
+      AppLogger.info('High-accuracy GPS fix acquired: ${pos.latitude}, ${pos.longitude}');
+      _handlePosition(pos);
+    }).catchError((e) {
+      AppLogger.warning('Single GPS fix request timeout/error: $e');
+    });
+
+    // 3. Continuous real-time GPS stream (every 1 meter)
     const settings = LocationSettings(
       accuracy: LocationAccuracy.bestForNavigation,
-      distanceFilter: 0,         // Get every update
-      timeLimit: null,
+      distanceFilter: 1, // update every 1 meter of physical movement
     );
 
-    _positionSubscription = Geolocator.getPositionStream(
-      locationSettings: settings,
-    ).listen(
-      _handlePosition,
-      onError: (e) => AppLogger.error('GPS stream error', e),
-    );
-
-    AppLogger.info('GPS tracking started (high accuracy)');
+    try {
+      _positionSubscription = Geolocator.getPositionStream(
+        locationSettings: settings,
+      ).listen(
+        (pos) {
+          _handlePosition(pos);
+        },
+        onError: (e) {
+          AppLogger.error('GPS stream error', e);
+        },
+      );
+      AppLogger.info('GPS continuous tracking started (high accuracy)');
+    } catch (e) {
+      AppLogger.error('Failed to start GPS stream', e);
+    }
   }
 
   /// Handle an incoming GPS position update with filtering.
@@ -54,10 +93,11 @@ class LocationService {
               _lastPosition!.timestamp.millisecondsSinceEpoch) /
           1000.0;
 
-      if (timeDelta > 0) {
-        // Compute expected max distance based on last known speed
+      // Only reject jumps if the interval is short (under 15s), last speed was > 0,
+      // and this is not a jump from a coarse/stale fix to high accuracy GPS
+      if (timeDelta > 0 && timeDelta < 15.0) {
         final lastSpeedMs = _lastPosition!.speed.clamp(0, 200.0);
-        final maxExpectedDist = (lastSpeedMs * timeDelta * _jumpMultiplier) + 50;
+        final maxExpectedDist = (lastSpeedMs * timeDelta * _jumpMultiplier) + 120;
 
         final actualDist = Geolocator.distanceBetween(
           _lastPosition!.latitude,
@@ -66,7 +106,7 @@ class LocationService {
           position.longitude,
         );
 
-        if (actualDist > maxExpectedDist && lastSpeedMs > 0) {
+        if (actualDist > maxExpectedDist && lastSpeedMs > 0 && actualDist < 10000) {
           AppLogger.warning(
             'GPS jump rejected: ${actualDist.toStringAsFixed(0)}m in ${timeDelta.toStringAsFixed(1)}s '
             '(max expected: ${maxExpectedDist.toStringAsFixed(0)}m)',

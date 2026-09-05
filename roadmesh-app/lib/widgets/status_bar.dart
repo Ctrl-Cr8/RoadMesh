@@ -6,7 +6,6 @@
 // - Heading compass
 // - Nearby vehicle count badge
 
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../models/alert.dart';
 import '../models/vehicle.dart';
@@ -63,20 +62,16 @@ class _DrivingStatusBarState extends State<DrivingStatusBar>
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(18),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-        child: Container(
+    return Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
-            color: AppColors.surface.withValues(alpha: 0.85),
-            border: Border.all(color: AppColors.glassBorder),
+            color: Colors.white,
+            border: Border.all(color: const Color(0xFFE2E8F0)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.4),
-                blurRadius: 20,
+                color: Colors.black.withValues(alpha: 0.10),
+                blurRadius: 14,
                 offset: const Offset(0, 4),
               ),
             ],
@@ -140,9 +135,9 @@ class _DrivingStatusBarState extends State<DrivingStatusBar>
                     Text(
                       widget.speed.toStringAsFixed(0),
                       style: const TextStyle(
-                        fontFamily: 'Orbitron',
+                        fontFamily: 'Inter',
                         fontSize: 20,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w800,
                         color: AppColors.textPrimary,
                         height: 1,
                       ),
@@ -231,12 +226,12 @@ class _DrivingStatusBarState extends State<DrivingStatusBar>
                       Text(
                         '${widget.nearbyCount}',
                         style: TextStyle(
+                          fontFamily: 'Inter',
                           fontSize: 12,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w800,
                           color: widget.nearbyCount > 0
                               ? AppColors.cyberBlue
                               : AppColors.textMuted,
-                          fontFamily: 'Orbitron',
                         ),
                       ),
                     ],
@@ -245,9 +240,7 @@ class _DrivingStatusBarState extends State<DrivingStatusBar>
               ],
             ),
           ),
-        ),
-      ),
-    );
+        );
   }
 }
 

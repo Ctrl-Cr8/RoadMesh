@@ -6,12 +6,10 @@
 // - Proximity distance badges and real-time place suggestions
 
 import 'dart:async';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../navigation/navigation_route.dart';
 import '../navigation/route_service.dart';
-import '../theme/app_colors.dart';
 
 class DestinationPickerSheet extends StatefulWidget {
   final ValueChanged<NavDestination> onDestinationSelected;
@@ -102,264 +100,278 @@ class _DestinationPickerSheetState extends State<DestinationPickerSheet> {
   Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: const Color(0xFF090E1A).withValues(alpha: 0.95),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            border: Border.all(color: AppColors.glassBorder),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Handle
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.white24,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-
-              // Header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.search_rounded, color: AppColors.cyberBlue, size: 20),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'NAVIGATE ANYWHERE',
-                        style: TextStyle(
-                          fontFamily: 'Orbitron',
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: const Icon(Icons.close_rounded, color: Colors.white60, size: 20),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-
-              // Search Bar
-              Container(
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.12),
+              blurRadius: 24,
+              offset: const Offset(0, -6),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Handle
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  color: Colors.white.withValues(alpha: 0.06),
-                  border: Border.all(color: AppColors.glassBorder),
+                  color: const Color(0xFFCBD5E1),
+                  borderRadius: BorderRadius.circular(2),
                 ),
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: _onSearchChanged,
-                  style: const TextStyle(color: Colors.white, fontSize: 13),
-                  decoration: InputDecoration(
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    prefixIcon: const Icon(Icons.place_rounded, color: AppColors.cyberBlue, size: 20),
-                    suffixIcon: _isLoading
-                        ? const Padding(
-                            padding: EdgeInsets.all(12),
-                            child: SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.cyberBlue,
-                              ),
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // Header
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.search_rounded, color: Color(0xFF2563EB), size: 22),
+                    SizedBox(width: 8),
+                    Text(
+                      'NAVIGATE TO DESTINATION',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0F172A),
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 22),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+
+            // Search Bar
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                color: const Color(0xFFF1F5F9),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: TextField(
+                controller: _searchController,
+                onChanged: _onSearchChanged,
+                style: const TextStyle(
+                  fontFamily: 'Inter',
+                  color: Color(0xFF0F172A),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+                decoration: InputDecoration(
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  prefixIcon: const Icon(Icons.place_rounded, color: Color(0xFF2563EB), size: 20),
+                  suffixIcon: _isLoading
+                      ? const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Color(0xFF2563EB),
                             ),
-                          )
-                        : (_searchController.text.isNotEmpty
-                            ? GestureDetector(
-                                onTap: () {
-                                  _searchController.clear();
-                                  _onSearchChanged('');
-                                },
-                                child: const Icon(Icons.clear_rounded, color: Colors.white54, size: 18),
-                              )
-                            : null),
-                    hintText: 'Search any address, city, junction, landmark...',
-                    hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 12),
+                          ),
+                        )
+                      : (_searchController.text.isNotEmpty
+                          ? GestureDetector(
+                              onTap: () {
+                                _searchController.clear();
+                                _onSearchChanged('');
+                              },
+                              child: const Icon(Icons.clear_rounded, color: Color(0xFF64748B), size: 18),
+                            )
+                          : null),
+                  hintText: 'Search address, junction, hospital, landmark...',
+                  hintStyle: const TextStyle(
+                    fontFamily: 'Inter',
+                    color: Color(0xFF94A3B8),
+                    fontSize: 12,
                   ),
                 ),
               ),
+            ),
 
-              const SizedBox(height: 12),
+            const SizedBox(height: 12),
 
-              // Quick Category Shortcuts
-              SizedBox(
-                height: 32,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: _quickCategories.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 8),
-                  itemBuilder: (ctx, idx) {
-                    final cat = _quickCategories[idx];
-                    final isSelected = _selectedCategory == cat['label'];
+            // Quick Category Shortcuts
+            SizedBox(
+              height: 34,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: _quickCategories.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (ctx, idx) {
+                  final cat = _quickCategories[idx];
+                  final isSelected = _selectedCategory == cat['label'];
 
-                    return GestureDetector(
-                      onTap: () => _selectCategory(cat),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(20),
-                          color: isSelected
-                              ? AppColors.cyberBlue.withValues(alpha: 0.25)
-                              : Colors.white.withValues(alpha: 0.05),
-                          border: Border.all(
-                            color: isSelected ? AppColors.cyberBlue : AppColors.glassBorder,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              cat['icon'] as IconData,
-                              size: 14,
-                              color: isSelected ? AppColors.cyberBlue : Colors.white70,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              cat['label'] as String,
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                                color: isSelected ? AppColors.cyberBlue : Colors.white,
-                              ),
-                            ),
-                          ],
+                  return GestureDetector(
+                    onTap: () => _selectCategory(cat),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(20),
+                        color: isSelected ? const Color(0xFF2563EB) : const Color(0xFFF8FAFC),
+                        border: Border.all(
+                          color: isSelected ? const Color(0xFF2563EB) : const Color(0xFFE2E8F0),
                         ),
                       ),
-                    );
-                  },
-                ),
-              ),
-
-              const SizedBox(height: 14),
-
-              // Destination List
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 280),
-                child: _destinations.isEmpty
-                    ? const Center(
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 24),
-                          child: Text(
-                            'No locations found. Try a different query.',
-                            style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            cat['icon'] as IconData,
+                            size: 14,
+                            color: isSelected ? Colors.white : const Color(0xFF64748B),
                           ),
-                        ),
-                      )
-                    : ListView.separated(
-                        shrinkWrap: true,
-                        itemCount: _destinations.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
-                        itemBuilder: (ctx, idx) {
-                          final dest = _destinations[idx];
-                          final prox = dest.formattedProximity;
+                          const SizedBox(width: 6),
+                          Text(
+                            cat['label'] as String,
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 11,
+                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                              color: isSelected ? Colors.white : const Color(0xFF334155),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
 
-                          return GestureDetector(
-                            onTap: () {
-                              widget.onDestinationSelected(dest);
-                              Navigator.pop(context);
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(14),
-                                color: Colors.white.withValues(alpha: 0.03),
-                                border: Border.all(color: AppColors.glassBorder),
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 36,
-                                    height: 36,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: AppColors.cyberBlue.withValues(alpha: 0.15),
-                                    ),
-                                    child: Icon(dest.icon, color: AppColors.cyberBlue, size: 18),
+            const SizedBox(height: 14),
+
+            // Destination List
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 280),
+              child: _destinations.isEmpty
+                  ? const Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24),
+                        child: Text(
+                          'No locations found. Try a different query.',
+                          style: TextStyle(fontFamily: 'Inter', color: Color(0xFF64748B), fontSize: 12),
+                        ),
+                      ),
+                    )
+                  : ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: _destinations.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (ctx, idx) {
+                        final dest = _destinations[idx];
+                        final prox = dest.formattedProximity;
+
+                        return GestureDetector(
+                          onTap: () {
+                            widget.onDestinationSelected(dest);
+                            Navigator.pop(context);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(14),
+                              color: const Color(0xFFF8FAFC),
+                              border: Border.all(color: const Color(0xFFE2E8F0)),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: const BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Color(0xFFEFF6FF),
                                   ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          dest.title,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w600,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          dest.subtitle,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            fontSize: 11,
-                                            color: AppColors.textMuted,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  if (prox != null) ...[
-                                    const SizedBox(width: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(10),
-                                        color: AppColors.cyberBlue.withValues(alpha: 0.15),
-                                        border: Border.all(
-                                          color: AppColors.cyberBlue.withValues(alpha: 0.4),
-                                        ),
-                                      ),
-                                      child: Text(
-                                        prox,
+                                  child: Icon(dest.icon, color: const Color(0xFF2563EB), size: 18),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        dest.title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                         style: const TextStyle(
-                                          fontSize: 10,
+                                          fontFamily: 'Inter',
+                                          fontSize: 13,
                                           fontWeight: FontWeight.w700,
-                                          color: AppColors.cyberBlue,
+                                          color: Color(0xFF0F172A),
                                         ),
                                       ),
-                                    ),
-                                  ],
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        dest.subtitle,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontFamily: 'Inter',
+                                          fontSize: 11,
+                                          color: Color(0xFF64748B),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (prox != null) ...[
                                   const SizedBox(width: 8),
-                                  const Icon(
-                                    Icons.navigation_rounded,
-                                    color: AppColors.cyberBlue,
-                                    size: 18,
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(10),
+                                      color: const Color(0xFFEFF6FF),
+                                      border: Border.all(
+                                        color: const Color(0xFFBFDBFE),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      prox,
+                                      style: const TextStyle(
+                                        fontFamily: 'Inter',
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF2563EB),
+                                      ),
+                                    ),
                                   ),
                                 ],
-                              ),
+                                const SizedBox(width: 8),
+                                const Icon(
+                                  Icons.navigation_rounded,
+                                  color: Color(0xFF2563EB),
+                                  size: 18,
+                                ),
+                              ],
                             ),
-                          );
-                        },
-                      ),
-              ),
-              const SizedBox(height: 6),
-            ],
-          ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+            const SizedBox(height: 6),
+          ],
         ),
       ),
     );

@@ -69,27 +69,7 @@ class DrivingProvider extends ChangeNotifier {
       // 1. Start battery monitoring
       await _batteryService.start();
 
-      // 2. Start location tracking
-      await _locationService.startTracking();
-
-      // 3. Listen to connection state & latency BEFORE connecting
-      _connectionSub = _wsService.connectionStream.listen((connected) {
-        _isConnected = connected;
-        notifyListeners();
-      });
-
-      _latencySub = _wsService.latencyStream.listen((ms) {
-        _latencyMs = ms;
-        notifyListeners();
-      });
-
-      // 4. Connect to server
-      await _wsService.connect(
-        serverUrl: _serverUrl.isNotEmpty ? _serverUrl : null,
-      );
-      _isConnected = _wsService.isConnected;
-
-      // 5. Listen to location updates
+      // 2. Listen to location updates BEFORE starting tracking so initial fix is captured
       _locationSub = _locationService.positionStream.listen((position) {
         _currentPosition = position;
         _currentSpeed = _locationService.getSpeedKmh(position);
@@ -106,6 +86,36 @@ class DrivingProvider extends ChangeNotifier {
 
         notifyListeners();
       });
+
+      // 3. Start location tracking
+      await _locationService.startTracking();
+      if (_locationService.lastPosition != null) {
+        _currentPosition = _locationService.lastPosition;
+        _currentSpeed = _locationService.getSpeedKmh(_locationService.lastPosition!);
+        _currentHeading = _locationService.lastPosition!.heading < 0 ? 0 : _locationService.lastPosition!.heading;
+        notifyListeners();
+      }
+
+      // 4. Listen to connection state & latency BEFORE connecting
+      _connectionSub = _wsService.connectionStream.listen((connected) {
+        _isConnected = connected;
+        notifyListeners();
+      });
+
+      _latencySub = _wsService.latencyStream.listen((ms) {
+        _latencyMs = ms;
+        notifyListeners();
+      });
+
+      // 5. Connect to server (non-blocking fallback so navigation starts even if server connects in background)
+      try {
+        await _wsService.connect(
+          serverUrl: _serverUrl.isNotEmpty ? _serverUrl : null,
+        );
+        _isConnected = _wsService.isConnected;
+      } catch (wsErr) {
+        AppLogger.warning('Initial WS connection issue: $wsErr (will auto-reconnect)');
+      }
 
       // 6. Listen to nearby vehicle updates
       _nearbySub = _wsService.nearbyStream.listen((update) {

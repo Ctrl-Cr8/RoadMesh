@@ -23,9 +23,15 @@ class BatteryService {
 
   /// Start polling battery level every 60 seconds.
   Future<void> start() async {
-    _currentLevel = await _battery.batteryLevel;
-    _levelController.add(_currentLevel);
-    AppLogger.info('Battery: $_currentLevel%');
+    try {
+      _currentLevel = await _battery.batteryLevel;
+      _levelController.add(_currentLevel);
+      AppLogger.info('Battery: $_currentLevel%');
+    } catch (e) {
+      AppLogger.warning('Battery level not available on this platform/environment: $e');
+      _currentLevel = 100;
+      _levelController.add(_currentLevel);
+    }
 
     _pollTimer = Timer.periodic(const Duration(seconds: 60), (_) async {
       try {
@@ -33,7 +39,7 @@ class BatteryService {
         _levelController.add(_currentLevel);
         AppLogger.debug('Battery poll: $_currentLevel%');
       } catch (e) {
-        AppLogger.error('Battery poll error', e);
+        // Silently ignore periodic poll errors on platforms without battery API
       }
     });
   }

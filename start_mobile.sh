@@ -16,6 +16,10 @@ SERVER_DIR="$ROOT_DIR/roadmesh-server"
 TOOLS_DIR="$ROOT_DIR/tools"
 APK_PATH="$APP_DIR/build/app/outputs/flutter-apk/app-debug.apk"
 
+export PATH="/c/src/android-sdk/platform-tools:/c/src/jdk-17/bin:/c/src/flutter/bin:$PATH"
+export JAVA_HOME="C:/src/jdk-17"
+export ANDROID_HOME="C:/src/android-sdk"
+
 # ─── Colors ───────────────────────────────────────────────────────────────────
 RED='\033[0;31m'
 GREEN='\033[0;32m'
