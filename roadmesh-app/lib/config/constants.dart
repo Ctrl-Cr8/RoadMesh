@@ -7,7 +7,7 @@ class AppConstants {
     if (kIsWeb && Uri.base.host.isNotEmpty) {
       return Uri.base.host;
     }
-    return '10.210.147.135'; // PC's Wi-Fi IP for direct mobile device connection
+    return '10.39.66.135'; // PC's Wi-Fi IP for direct mobile device connection
   }
   static const int defaultServerPort = 3000;
   static String get defaultWsUrl => 'ws://$defaultServerHost:$defaultServerPort/ws';
