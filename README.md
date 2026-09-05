@@ -20,7 +20,7 @@
 - **🎯 Predictive Collision AI**: Trajectory projection and relative velocity dot-product Time-of-Closest-Approach (TCA) calculation up to 10 seconds ahead.
 - **🎨 Glassmorphic HUD App**: Modern Flutter dark UI with Orbitron font, glassmorphic cards, animated radar, and custom particle background.
 - **📊 Real-Time Admin Web Dashboard**: Interactive Leaflet.js map tracking all active vehicles, speeds, headings, and collision alerts.
-- **🛠️ Scenario Simulator**: 7 preset collision simulation scenarios (Head-On, Blind Corner, Overtaking, Emergency, Intersection, School Zone, Highway Merge) controllable via web UI.
+- **🚸 Arduino V2I Smart Crossing**: Hardware Roadside Unit (RSU) integration for school zones and vulnerable road users.
 - **🐳 One-Command Docker Setup**: Fully containerized stack with Nginx reverse proxy.
 - **🧪 Comprehensive Test Suite**: Fully automated unit and integration tests passing.
 
@@ -30,10 +30,10 @@
 
 ```mermaid
 graph TB
-    subgraph Clients["📱 Telemetry Clients (Pure Software)"]
-        M1["Flutter App (Driver 1 - Android/iOS)"]
-        M2["Flutter App (Driver 2 - Android/iOS)"]
-        SIM["Scenario Simulation Engine"]
+    subgraph Clients["📱 Pure Physical Telemetry Clients"]
+        M1["Flutter App (Driver 1 - Real GPS/Compass)"]
+        M2["Flutter App (Driver 2 - Real GPS/Compass)"]
+        ARD["Arduino UNO V2I School Beacon"]
     end
 
     subgraph Server["🖥️ RoadMesh Core (Docker)"]
@@ -46,9 +46,9 @@ graph TB
         API["REST API & /metrics"]
     end
 
-    M1 -->|WebSocket JSON| WS
-    M2 -->|WebSocket JSON| WS
-    SIM -->|WebSocket JSON| WS
+    M1 -->|Live GPS JSON / WS| WS
+    M2 -->|Live GPS JSON / WS| WS
+    ARD -->|V2I Crosswalk Alert / WS| WS
 
     WS --> VS
     VS --> SG
@@ -61,14 +61,13 @@ graph TB
 
 ## 🚀 Quick Start (Docker)
 
-Run the full stack (Server + Simulator REST engine + Admin Dashboard + Nginx Proxy) in seconds:
+Run the full stack (Server + Admin Dashboard + Nginx Proxy) in seconds:
 
 ```bash
 docker-compose up -d --build
 ```
 
 - **Admin Web Dashboard**: [`http://localhost/dashboard`](http://localhost/dashboard)
-- **Simulator Control UI**: [`http://localhost/sim/`](http://localhost/sim/)
 - **WebSocket Endpoint**: `ws://localhost/ws`
 
 ---

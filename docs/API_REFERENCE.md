@@ -9,7 +9,7 @@ This document provides complete details on the WebSocket and REST protocol messa
 Connected mobile apps communicate with the server over WebSocket at `ws://<host>:3000/ws`.
 
 ### 1. Position Update (`POSITION_UPDATE`)
-Sent by the client (mobile app or simulator) every ~1 second.
+Sent continuously by the smartphone Flutter mobile app every ~1 second.
 
 **Request:**
 ```json

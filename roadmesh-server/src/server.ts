@@ -1,13 +1,14 @@
 // ─── RoadMesh Server ────────────────────────────────────────────────────────
 //
 // Express HTTP server + WebSocket upgrade.
-// High-performance, pure-software V2X architecture for mobile apps & simulators.
+// High-performance, pure-software V2X architecture for real-time mobile apps.
 
 import express from 'express';
 import cors from 'cors';
 import http from 'http';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import rateLimit from 'express-rate-limit';
 import { VehicleStore } from './vehicles/store';
 import { WebSocketHandler } from './protocol/websocket';
@@ -145,14 +146,32 @@ export class RoadMeshServer {
             });
         });
 
+        // Mobile device connection info & auto-discovery
+        this.app.get('/connect', (_req, res) => {
+            const ips = this.getLocalIps();
+            res.json({
+                status: 'online',
+                serverTime: Date.now(),
+                httpPort: this.config.httpPort,
+                localIps: ips,
+                wifiWsUrls: ips.map(ip => `ws://${ip}:${this.config.httpPort}/ws`),
+                usbTunnelWsUrl: `ws://localhost:${this.config.httpPort}/ws`,
+                adbReverseCommand: `adb reverse tcp:${this.config.httpPort} tcp:${this.config.httpPort}`,
+                nearbyRadiusMeters: this.config.nearbyRadiusMeters,
+                collisionHorizonSec: this.config.collisionPredictionHorizonSec,
+                activeVehicles: this.store.getStats().totalVehicles,
+            });
+        });
+
         // Root
         this.app.get('/', (_req, res) => {
             res.json({
                 name: 'RoadMesh Server',
                 version: '1.0.0',
-                description: 'Smartphone-Based Cooperative Vehicle Awareness Platform',
+                description: 'Real-Time Smartphone-Based Cooperative Vehicle Awareness & V2X Platform',
                 endpoints: {
                     health: '/health',
+                    connect: '/connect',
                     stats: '/stats',
                     metrics: '/metrics',
                     vehicles: '/vehicles',
@@ -161,6 +180,22 @@ export class RoadMeshServer {
                 },
             });
         });
+    }
+
+    /**
+     * Get non-internal IPv4 addresses of this machine.
+     */
+    getLocalIps(): string[] {
+        const interfaces = os.networkInterfaces();
+        const ips: string[] = [];
+        for (const name of Object.keys(interfaces)) {
+            for (const iface of interfaces[name] || []) {
+                if (iface.family === 'IPv4' && !iface.internal) {
+                    ips.push(iface.address);
+                }
+            }
+        }
+        return ips;
     }
 
     /**
@@ -182,21 +217,26 @@ export class RoadMeshServer {
 
         // Start HTTP server
         this.httpServer.listen(this.config.httpPort, () => {
+            const ips = this.getLocalIps();
+            const wifiEndpoints = ips.length > 0
+                ? ips.map(ip => `║   • Wi-Fi (Phones): ws://${ip}:${this.config.httpPort}/ws`).join('\n')
+                : '║   • Wi-Fi (Phones): (Connect Wi-Fi to get local IP)';
+
             log.info(`
-╔══════════════════════════════════════════════════════╗
-║                                                      ║
-║     🚗  RoadMesh Server v1.0.0                       ║
-║     100% Smartphone-Based V2X Safety Platform        ║
-║                                                      ║
-║     HTTP/WS:    http://localhost:${this.config.httpPort}              ║
-║     WebSocket:  ws://localhost:${this.config.httpPort}/ws             ║
-║     Dashboard:  http://localhost:${this.config.httpPort}/dashboard    ║
-║     Metrics:    http://localhost:${this.config.httpPort}/metrics      ║
-║                                                      ║
-║     Nearby radius: ${this.config.nearbyRadiusMeters}m                        ║
-║     Collision horizon: ${this.config.collisionPredictionHorizonSec}s                      ║
-║                                                      ║
-╚══════════════════════════════════════════════════════╝
+╔══════════════════════════════════════════════════════════════════════╗
+║                                                                      ║
+║     🚗  ROADMESH CORE SERVER v1.0.0 (REAL-TIME V2X)                  ║
+║     100% Smartphone Telemetry & Spatial AI Collision Engine          ║
+║                                                                      ║
+║   Dashboard:       http://localhost:${this.config.httpPort}/dashboard                ║
+║   Localhost WS:    ws://localhost:${this.config.httpPort}/ws                         ║
+${wifiEndpoints}
+║   • USB Phone:     adb reverse tcp:${this.config.httpPort} tcp:${this.config.httpPort}              ║
+║                                                                      ║
+║   Nearby Radius:   ${this.config.nearbyRadiusMeters} meters                                  ║
+║   TTC Horizon:     ${this.config.collisionPredictionHorizonSec} seconds                                 ║
+║                                                                      ║
+╚══════════════════════════════════════════════════════════════════════╝
       `);
         });
     }

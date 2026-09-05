@@ -1,200 +1,224 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RoadMesh — Autonomous V2X Operations Console</title>
+    <title>RoadMesh — Cooperative V2X Operations Console</title>
     <!-- Leaflet CSS for Map -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="stylesheet" href="dashboard.css" />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="app-container">
-        <!-- Sidebar Navigation -->
-        <aside class="sidebar">
-            <div class="brand">
-                <div class="logo-pulse">
-                    <span class="logo-icon">📡</span>
+    <div class="app-layout">
+        <!-- Top Navigation Bar -->
+        <header class="top-nav">
+            <div class="nav-left">
+                <div class="brand-mark">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
+                    </svg>
                 </div>
-                <div class="brand-text">
-                    <h1>ROADMESH</h1>
-                    <p class="tagline">V2X ITS MISSION CONTROL</p>
-                </div>
-            </div>
-
-            <!-- Interactive Scenario Command Hub -->
-            <div class="scenario-command-card">
-                <div class="card-title-row">
-                    <span class="card-badge">🎮 SCENARIO INJECTOR</span>
-                </div>
-                <p class="card-desc">Inject live multi-vehicle kinematic physics into the AI collision engine:</p>
-                
-                <div class="form-group">
-                    <label for="scenario-select">HAZARD SCENARIO</label>
-                    <select id="scenario-select" class="cyber-select">
-                        <option value="headOn">💥 Head-On Collision (TTC: 3.2s)</option>
-                        <option value="blindCorner">👁️ Blind Corner Obstructed View</option>
-                        <option value="emergency">🚑 Emergency Ambulance EVW</option>
-                        <option value="schoolZone">🚸 School Zone (Bus + Pedestrians)</option>
-                        <option value="overtaking">⚡ High-Speed Blind Overtake</option>
-                        <option value="intersection">🚦 4-Way Unsignalized Crossing</option>
-                    </select>
-                </div>
-
-                <div class="scenario-actions">
-                    <button id="btn-launch-scenario" class="btn-primary-neon">
-                        <span>▶ LAUNCH</span>
-                    </button>
-                    <button id="btn-stop-scenario" class="btn-danger-neon">
-                        <span>⏹ STOP</span>
-                    </button>
-                </div>
-
-                <!-- Arduino Hardware V2I Trigger -->
-                <div class="arduino-v2i-section">
-                    <div class="arduino-header">
-                        <span class="arduino-icon">🚸</span>
-                        <div class="arduino-meta">
-                            <div class="arduino-title">ARDUINO UNO (V2I)</div>
-                            <div class="arduino-sub" id="arduino-status-sub">BEACON IDLE (PIN 2)</div>
-                        </div>
-                        <div class="arduino-led" id="arduino-led-indicator"></div>
-                    </div>
-                    <button id="btn-trigger-arduino" class="btn-arduino">
-                        <span>⚡ SIMULATE PEDESTRIAN BUTTON</span>
-                    </button>
-                    <p class="arduino-hint">Emulates the physical pedestrian pushbutton switch connected to Arduino Uno Pin 2.</p>
+                <div class="brand-info">
+                    <span class="brand-title">RoadMesh</span>
+                    <span class="brand-badge">V2X Platform</span>
                 </div>
             </div>
 
-            <div class="sidebar-spacer"></div>
+            <div class="nav-right">
+                <!-- Live WebSocket Status Pill -->
+                <div class="status-pill" id="ws-pill">
+                    <span class="live-dot" id="ws-dot"></span>
+                    <span class="status-text" id="ws-status-val">Connected</span>
+                    <span class="status-divider"></span>
+                    <span class="status-latency" id="server-uptime">&lt;15ms</span>
+                </div>
 
-            <div class="audio-control-row">
-                <button id="audio-toggle-btn" class="audio-btn">
-                    <span id="audio-icon">🔊</span> <span id="audio-label">Radar Audio: ON</span>
+                <!-- Action Controls -->
+                <div class="nav-actions">
+                    <button id="btn-focus-devices" class="btn-ghost" title="Center map on active vehicles">
+                        <i data-lucide="crosshair" class="btn-icon-svg"></i>
+                        <span>Focus</span>
+                    </button>
+
+                    <button id="audio-toggle-btn" class="btn-ghost" title="Toggle radar audio alerts">
+                        <span id="audio-icon"><i data-lucide="volume-2" class="btn-icon-svg"></i></span>
+                        <span id="audio-label" class="sr-only">Audio: ON</span>
+                    </button>
+
+                    <!-- Light / Dark Mode Toggle -->
+                    <button id="theme-toggle-btn" class="btn-ghost theme-btn" title="Toggle light/dark theme">
+                        <i data-lucide="moon" id="theme-icon" class="btn-icon-svg"></i>
+                        <span class="sr-only">Toggle Theme</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Metric Summary Strip -->
+        <section class="metric-strip">
+            <div class="metric-item">
+                <span class="metric-eyebrow">ACTIVE VEHICLES</span>
+                <div class="metric-row">
+                    <span class="metric-number" id="active-vehicles-count">0</span>
+                    <span class="metric-unit">nodes</span>
+                </div>
+            </div>
+
+            <div class="metric-separator"></div>
+
+            <div class="metric-item">
+                <span class="metric-eyebrow">COLLISION THREATS</span>
+                <div class="metric-row">
+                    <span class="metric-number alert-num" id="active-alerts-count">0</span>
+                    <span class="metric-status-chip safe" id="threat-level-text">Nominal</span>
+                </div>
+            </div>
+
+            <div class="metric-separator"></div>
+
+            <div class="metric-item">
+                <span class="metric-eyebrow">V2I ROADSIDE BEACON</span>
+                <div class="metric-row">
+                    <span class="rsu-beacon-dot" id="arduino-led-indicator"></span>
+                    <span class="metric-value-text" id="rsu-status-val">Monitoring</span>
+                </div>
+                <span class="metric-sub" id="arduino-status-sub">Arduino Pin 2 Active</span>
+            </div>
+
+            <div class="metric-separator"></div>
+
+            <div class="metric-item action-item">
+                <button id="btn-trigger-arduino" class="btn-secondary-action">
+                    <i data-lucide="radio" class="btn-icon-svg"></i>
+                    <span>Simulate Crossing</span>
                 </button>
             </div>
+        </section>
 
-            <div class="server-status">
-                <div class="status-indicator online"></div>
-                <div class="status-info">
-                    <div class="status-label">SPATIAL ENGINE: <strong>LIVE</strong></div>
-                    <div class="status-sub" id="server-uptime">Uptime: 00:00:00</div>
-                </div>
-            </div>
-        </aside>
-
-        <!-- Main Content Area -->
-        <main class="main-content">
-            <!-- Top Metric Header -->
-            <header class="dashboard-header">
-                <div class="metric-card">
-                    <div class="metric-icon blue">🚗</div>
-                    <div class="metric-data">
-                        <div class="metric-label">ACTIVE VEHICLES</div>
-                        <div class="metric-value" id="active-vehicles-count">0</div>
+        <!-- Main Workspace (Hero Map + Sidebar) -->
+        <main class="main-workspace">
+            <!-- Hero Map Panel -->
+            <section class="map-section">
+                <div class="map-card">
+                    <div class="map-card-header">
+                        <div class="header-left">
+                            <span class="header-title">Live Spatial Map</span>
+                            <span class="header-badge" id="telemetry-count-badge">0 Devices</span>
+                        </div>
+                        <div class="map-legend-bar">
+                            <span class="legend-pill"><span class="legend-dot normal"></span>Vehicle</span>
+                            <span class="legend-pill"><span class="legend-dot alert"></span>Risk</span>
+                            <span class="legend-pill"><span class="legend-dot beacon"></span>V2I Beacon</span>
+                        </div>
                     </div>
-                    <div class="metric-trend">Real-Time V2V/V2I</div>
+                    <div id="map" class="map-canvas"></div>
                 </div>
+            </section>
 
-                <div class="metric-card alert-card">
-                    <div class="metric-icon red">⚠️</div>
-                    <div class="metric-data">
-                        <div class="metric-label">COLLISION THREATS</div>
-                        <div class="metric-value" id="active-alerts-count">0</div>
-                    </div>
-                    <div class="metric-trend" id="threat-level-text">Status: Clear</div>
-                </div>
-
-                <div class="metric-card">
-                    <div class="metric-icon green">⚡</div>
-                    <div class="metric-data">
-                        <div class="metric-label">WS TELEMETRY</div>
-                        <div class="metric-value" id="ws-status-val">CONNECTED</div>
-                    </div>
-                    <div class="metric-trend">&lt; 15ms Latency</div>
-                </div>
-
-                <div class="metric-card">
-                    <div class="metric-icon purple">🚸</div>
-                    <div class="metric-data">
-                        <div class="metric-label">V2I SMART RSU</div>
-                        <div class="metric-value" id="rsu-status-val">MONITORING</div>
-                    </div>
-                    <div class="metric-trend">Arduino School Node</div>
-                </div>
-            </header>
-
-            <!-- Dashboard Grid: Dark Map + Alert Stream -->
-            <div class="dashboard-grid">
-                <!-- Map Container -->
-                <section class="panel map-panel">
+            <!-- Right Inspector Sidebar -->
+            <aside class="sidebar-section">
+                <!-- Device Pairing Card -->
+                <div class="panel-card pairing-panel">
                     <div class="panel-header">
-                        <div class="title-with-badge">
-                            <h2>TACTICAL SPATIAL RADAR</h2>
-                            <span class="badge live-badge">● LIVE GEOSPATIAL MESH</span>
-                        </div>
-                        <div class="map-legend">
-                            <span class="legend-item"><span class="dot cyan"></span> Normal Vehicle</span>
-                            <span class="legend-item"><span class="dot red"></span> Hazard / Threat</span>
-                            <span class="legend-item"><span class="dot amber"></span> Arduino School RSU</span>
-                            <span class="legend-item"><span class="dot purple"></span> Emergency</span>
+                        <div class="panel-title-group">
+                            <i data-lucide="smartphone" class="panel-icon"></i>
+                            <span class="panel-title">Mobile Pairing</span>
                         </div>
                     </div>
-                    <div id="map"></div>
-                </section>
+                    <div class="panel-body">
+                        <div class="input-group">
+                            <label class="input-label" for="ws-endpoint-url">WebSocket Endpoint</label>
+                            <div class="input-row">
+                                <input type="text" id="ws-endpoint-url" class="code-input" readonly value="Loading..." />
+                                <button id="btn-copy-ws" class="btn-copy" title="Copy URL">
+                                    <i data-lucide="copy" class="copy-svg"></i>
+                                </button>
+                            </div>
+                        </div>
 
-                <!-- Alert Stream Panel -->
-                <section class="panel alerts-panel">
-                    <div class="panel-header">
-                        <div class="title-with-badge">
-                            <h2>HAZARD WARNING STREAM</h2>
-                            <span class="badge alert-count-badge" id="alert-badge-count">0 EVENTS</span>
-                        </div>
-                        <button id="clear-alerts-btn" class="btn-sm">Clear</button>
-                    </div>
-                    <div class="alerts-stream" id="alerts-stream-container">
-                        <div class="empty-state">
-                            <div class="empty-icon">🛡️</div>
-                            <div class="empty-text">No active collision threats in monitored perimeter.</div>
-                            <div class="empty-sub">Launch a scenario from the sidebar to inject conflicting vehicle trajectories.</div>
+                        <div class="input-group compact-group">
+                            <label class="input-label">USB Tunnel (ADB)</label>
+                            <div class="code-banner">
+                                <code>adb reverse tcp:3000 tcp:3000</code>
+                                <button id="btn-copy-adb" class="btn-copy-inline" title="Copy ADB command">
+                                    <i data-lucide="copy" class="copy-svg-sm"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </section>
-            </div>
-
-            <!-- Vehicle Table Panel -->
-            <section class="panel table-panel">
-                <div class="panel-header">
-                    <div class="title-with-badge">
-                        <h2>LIVE KINEMATIC VEHICLE TELEMETRY</h2>
-                        <span class="badge count-badge" id="telemetry-count-badge">0 NODES</span>
-                    </div>
-                    <input type="text" id="vehicle-search" placeholder="Filter Vehicle ID..." class="search-input" />
                 </div>
-                <div class="table-container">
-                    <table>
+
+                <!-- Hazard Warning Alerts Feed -->
+                <div class="panel-card alerts-panel">
+                    <div class="panel-header">
+                        <div class="panel-title-group">
+                            <i data-lucide="bell" class="panel-icon"></i>
+                            <span class="panel-title">Safety Alerts</span>
+                            <span class="badge-count" id="alert-badge-count">0</span>
+                        </div>
+                        <button id="clear-alerts-btn" class="btn-text" title="Clear alerts list">Clear</button>
+                    </div>
+
+                    <div class="alerts-feed-container" id="alerts-stream-container">
+                        <div class="quiet-empty-state">
+                            <i data-lucide="shield-check" class="empty-icon-svg"></i>
+                            <p class="empty-text">No active collision threats in perimeter</p>
+                            <span class="empty-hint">Nearby vehicles within 500m are analyzed in real time</span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </main>
+
+        <!-- Bottom Vehicle Telemetry Table -->
+        <section class="table-section">
+            <div class="table-card">
+                <div class="table-card-header">
+                    <div class="header-left">
+                        <span class="header-title">Active Device Telemetry</span>
+                    </div>
+                    <div class="header-right">
+                        <div class="search-wrap">
+                            <i data-lucide="search" class="search-icon-svg"></i>
+                            <input type="text" id="vehicle-search" placeholder="Filter by ID, Type..." class="search-input" />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="saas-table">
                         <thead>
                             <tr>
-                                <th>VEHICLE / NODE ID</th>
-                                <th>TYPE</th>
-                                <th>COORDINATES (LAT, LNG)</th>
-                                <th>SPEED</th>
-                                <th>HEADING</th>
-                                <th>TTC / THREAT</th>
-                                <th>STATUS</th>
+                                <th>Device / Vehicle</th>
+                                <th>Classification</th>
+                                <th>Coordinates</th>
+                                <th>Speed</th>
+                                <th>Heading</th>
+                                <th>Collision Risk</th>
+                                <th>Source</th>
                             </tr>
                         </thead>
                         <tbody id="vehicle-table-body">
                             <tr>
-                                <td colspan="7" class="empty-row">No active vehicles registered. Launch a scenario to start data stream.</td>
+                                <td colspan="7" class="table-empty-row">
+                                    <div class="quiet-table-empty">
+                                        <i data-lucide="radio" class="empty-table-icon"></i>
+                                        <span>Awaiting live smartphone connections from the RoadMesh mobile app.</span>
+                                    </div>
+                                </td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
-            </section>
-        </main>
+            </div>
+        </section>
     </div>
 
     <!-- Leaflet JS -->
