@@ -3,11 +3,10 @@
 // 3-page onboarding shown on first launch.
 // Saved via SharedPreferences so it only shows once.
 
-import 'dart:ui';
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_colors.dart';
+import 'home_screen.dart';
 
 class OnboardingScreen extends StatefulWidget {
   final VoidCallback onComplete;
@@ -58,6 +57,16 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('onboarding_complete', true);
     widget.onComplete();
+    if (mounted) {
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder(
+          pageBuilder: (_, __, ___) => const HomeScreen(),
+          transitionsBuilder: (_, anim, __, child) =>
+              FadeTransition(opacity: anim, child: child),
+          transitionDuration: const Duration(milliseconds: 400),
+        ),
+      );
+    }
   }
 
   static const _pages = [

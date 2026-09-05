@@ -72,12 +72,24 @@ class DrivingProvider extends ChangeNotifier {
       // 2. Start location tracking
       await _locationService.startTracking();
 
-      // 3. Connect to server
+      // 3. Listen to connection state & latency BEFORE connecting
+      _connectionSub = _wsService.connectionStream.listen((connected) {
+        _isConnected = connected;
+        notifyListeners();
+      });
+
+      _latencySub = _wsService.latencyStream.listen((ms) {
+        _latencyMs = ms;
+        notifyListeners();
+      });
+
+      // 4. Connect to server
       await _wsService.connect(
         serverUrl: _serverUrl.isNotEmpty ? _serverUrl : null,
       );
+      _isConnected = _wsService.isConnected;
 
-      // 4. Listen to location updates
+      // 5. Listen to location updates
       _locationSub = _locationService.positionStream.listen((position) {
         _currentPosition = position;
         _currentSpeed = _locationService.getSpeedKmh(position);
@@ -95,7 +107,7 @@ class DrivingProvider extends ChangeNotifier {
         notifyListeners();
       });
 
-      // 5. Listen to nearby vehicle updates
+      // 6. Listen to nearby vehicle updates
       _nearbySub = _wsService.nearbyStream.listen((update) {
         _nearbyVehicles = update.vehicles;
         _activeAlerts = update.alerts;
@@ -113,18 +125,6 @@ class DrivingProvider extends ChangeNotifier {
         notifyListeners();
       });
 
-      // 6. Listen to connection state
-      _connectionSub = _wsService.connectionStream.listen((connected) {
-        _isConnected = connected;
-        notifyListeners();
-      });
-
-      // 7. Listen to latency
-      _latencySub = _wsService.latencyStream.listen((ms) {
-        _latencyMs = ms;
-        notifyListeners();
-      });
-
       _isDriving = true;
       notifyListeners();
       AppLogger.info('Driving session started');
@@ -132,6 +132,19 @@ class DrivingProvider extends ChangeNotifier {
       AppLogger.error('Failed to start driving session', e);
       await stopDriving();
       rethrow;
+    }
+  }
+
+  /// Manually retry V2X server connection
+  Future<void> retryConnection() async {
+    try {
+      await _wsService.connect(
+        serverUrl: _serverUrl.isNotEmpty ? _serverUrl : null,
+      );
+      _isConnected = _wsService.isConnected;
+      notifyListeners();
+    } catch (e) {
+      AppLogger.error('Failed to retry connection', e);
     }
   }
 

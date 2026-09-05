@@ -33,10 +33,23 @@ void main() async {
   runApp(RoadMeshApp(showOnboarding: !onboardingComplete));
 }
 
-class RoadMeshApp extends StatelessWidget {
+class RoadMeshApp extends StatefulWidget {
   final bool showOnboarding;
 
   const RoadMeshApp({super.key, required this.showOnboarding});
+
+  @override
+  State<RoadMeshApp> createState() => _RoadMeshAppState();
+}
+
+class _RoadMeshAppState extends State<RoadMeshApp> {
+  late bool _showOnboarding;
+
+  @override
+  void initState() {
+    super.initState();
+    _showOnboarding = widget.showOnboarding;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,9 +62,12 @@ class RoadMeshApp extends StatelessWidget {
         title: 'RoadMesh',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.dark,
-        home: showOnboarding
+        home: _showOnboarding
             ? OnboardingScreen(
-                onComplete: () => AppLogger.info('Onboarding complete'),
+                onComplete: () {
+                  AppLogger.info('Onboarding complete');
+                  setState(() => _showOnboarding = false);
+                },
               )
             : const HomeScreen(),
       ),

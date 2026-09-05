@@ -89,8 +89,8 @@ class CollisionService {
   }
 
   Future<void> _triggerHaptic(RiskLevel level) async {
-    final hasVibrator = await Vibration.hasVibrator() ?? false;
-    if (!hasVibrator) return;
+    final hasVibrator = await Vibration.hasVibrator();
+    if (hasVibrator != true) return;
 
     switch (level) {
       case RiskLevel.yellow:

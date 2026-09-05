@@ -66,7 +66,7 @@ class _DebugScreenState extends State<DebugScreen> {
                 _StatChip(
                   label: 'VEHICLE ID',
                   value: provider.vehicleId != null
-                      ? provider.vehicleId!.substring(0, 8) + '...'
+                      ? '${provider.vehicleId!.substring(0, 8)}...'
                       : 'N/A',
                   color: AppColors.cyberBlue,
                 ),
