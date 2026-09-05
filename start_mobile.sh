@@ -109,9 +109,16 @@ if ! lsof -ti:3000 &> /dev/null; then
 fi
 echo -e "   ${GREEN}✓ RoadMesh Core Server is active on port 3000${RESET}"
 
-# 5. Check APK existence and build if missing
-if [ ! -f "$APK_PATH" ]; then
-    echo -e "\n${CYAN}📦 APK not found. Building RoadMesh debug APK...${RESET}"
+# 5. Check APK existence and build if missing or outdated
+NEEDS_BUILD=false
+if [ ! -f "$APK_PATH" ] || [ "$1" == "--build" ] || [ "$1" == "-b" ]; then
+    NEEDS_BUILD=true
+elif [ "$APP_DIR/lib/config/constants.dart" -nt "$APK_PATH" ]; then
+    NEEDS_BUILD=true
+fi
+
+if [ "$NEEDS_BUILD" = true ]; then
+    echo -e "\n${CYAN}📦 Rebuilding RoadMesh debug APK with latest updates...${RESET}"
     cd "$APP_DIR" || exit 1
     flutter build apk --debug --target-platform android-arm64
 fi

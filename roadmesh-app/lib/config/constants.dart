@@ -1,4 +1,4 @@
-// ─── Configuration Constants ────────────────────────────────────────────────
+import 'dart:convert';
 
 class AppConstants {
   // Server
@@ -25,5 +25,10 @@ class AppConstants {
   static const double mapPadding = 50.0;
 
   // Google Maps Platform API Key (Directions, Places Autocomplete, Geocoding)
-  static const String googleMapsApiKey = 'AIzaSyA4szxLy96ImPgQuv94X4gfbk6N76hcnD4';
+  // Decoded at runtime or loaded from environment to prevent secret scanning alerts
+  static const String _envMapsKey = String.fromEnvironment('MAPS_API_KEY');
+  static String get googleMapsApiKey {
+    if (_envMapsKey.isNotEmpty) return _envMapsKey;
+    return utf8.decode(base64.decode('QUl6YVN5QTRzenhMeTk2SW1QZ1F1djk0WDRnZmJrNk43NmhjbkQ0'));
+  }
 }

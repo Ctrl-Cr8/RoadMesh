@@ -648,7 +648,7 @@ class _DrivingScreenState extends State<DrivingScreen>
                   ),
                   Switch(
                     value: _isAutoSpeedLimit,
-                    activeColor: AppColors.cyberBlue,
+                    activeTrackColor: AppColors.cyberBlue,
                     onChanged: (val) {
                       setState(() {
                         _isAutoSpeedLimit = val;
@@ -706,7 +706,7 @@ class _DrivingScreenState extends State<DrivingScreen>
                   const Text('Show Badge on Cockpit', style: TextStyle(color: Colors.white, fontSize: 12)),
                   Switch(
                     value: _showSpeedLimitSign,
-                    activeColor: AppColors.cyberBlue,
+                    activeTrackColor: AppColors.cyberBlue,
                     onChanged: (val) {
                       setState(() {
                         _showSpeedLimitSign = val;

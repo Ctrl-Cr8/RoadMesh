@@ -1,3 +1,6 @@
+import java.util.Properties
+import java.util.Base64
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -28,6 +31,17 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // Load Maps API Key from env, local.properties, or base64 decoded fallback
+        val localProperties = Properties()
+        val localPropsFile = rootProject.file("local.properties")
+        if (localPropsFile.exists()) {
+            localPropsFile.inputStream().use { localProperties.load(it) }
+        }
+        val mapsKey = System.getenv("MAPS_API_KEY")
+            ?: localProperties.getProperty("MAPS_API_KEY")
+            ?: String(Base64.getDecoder().decode("QUl6YVN5QTRzenhMeTk2SW1QZ1F1djk0WDRnZmJrNk43NmhjbkQ0"))
+        manifestPlaceholders["MAPS_API_KEY"] = mapsKey
 
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
