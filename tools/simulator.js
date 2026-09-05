@@ -18,6 +18,133 @@ const UPDATE_INTERVAL_MS = 1000;
 // ─── Predefined Scenarios (Kochi area for demo) ──────────────────────────────
 
 const SCENARIOS = {
+    kothamangalamTraffic: [
+        {
+            name: 'Auto Rickshaw (Kozhippilly Rd)',
+            vehicleType: 'AUTO_RICKSHAW',
+            waypoints: [
+                { lat: 10.0520, lng: 76.6180 },
+                { lat: 10.0532, lng: 76.6188 },
+                { lat: 10.0544, lng: 76.6198 },
+                { lat: 10.0556, lng: 76.6208 },
+            ],
+            speed: 34,
+        },
+        {
+            name: 'Pulsar 220 (MA College Rd)',
+            vehicleType: 'MOTORCYCLE',
+            waypoints: [
+                { lat: 10.0558, lng: 76.6202 },
+                { lat: 10.0545, lng: 76.6195 },
+                { lat: 10.0532, lng: 76.6186 },
+                { lat: 10.0520, lng: 76.6178 },
+            ],
+            speed: 48,
+        },
+        {
+            name: 'Swift Dzire Taxi',
+            vehicleType: 'CAR',
+            waypoints: [
+                { lat: 10.0515, lng: 76.6190 },
+                { lat: 10.0530, lng: 76.6192 },
+                { lat: 10.0545, lng: 76.6196 },
+                { lat: 10.0558, lng: 76.6200 },
+            ],
+            speed: 42,
+        },
+        {
+            name: 'KSRTC Swift Bus',
+            vehicleType: 'BUS',
+            waypoints: [
+                { lat: 10.0510, lng: 76.6175 },
+                { lat: 10.0530, lng: 76.6188 },
+                { lat: 10.0550, lng: 76.6202 },
+                { lat: 10.0570, lng: 76.6215 },
+            ],
+            speed: 38,
+        },
+        {
+            name: 'EMS Kerala Ambulance',
+            vehicleType: 'AMBULANCE',
+            waypoints: [
+                { lat: 10.0505, lng: 76.6168 },
+                { lat: 10.0535, lng: 76.6190 },
+                { lat: 10.0565, lng: 76.6212 },
+            ],
+            speed: 75,
+        },
+        {
+            name: 'Campus Crossing Pedestrian',
+            vehicleType: 'PEDESTRIAN',
+            waypoints: [
+                { lat: 10.0538, lng: 76.6190 },
+                { lat: 10.0538, lng: 76.6198 },
+            ],
+            speed: 4,
+        },
+    ],
+    kochiIndianTraffic: [
+        {
+            name: 'Auto Rickshaw (3-Wheeler)',
+            vehicleType: 'AUTO_RICKSHAW',
+            waypoints: [
+                { lat: 10.0210, lng: 76.3115 },
+                { lat: 10.0235, lng: 76.3118 },
+                { lat: 10.0260, lng: 76.3122 },
+                { lat: 10.0285, lng: 76.3120 },
+            ],
+            speed: 36,
+        },
+        {
+            name: 'Pulsar 220 (Two-Wheeler)',
+            vehicleType: 'MOTORCYCLE',
+            waypoints: [
+                { lat: 10.0280, lng: 76.3130 },
+                { lat: 10.0255, lng: 76.3122 },
+                { lat: 10.0230, lng: 76.3115 },
+            ],
+            speed: 52,
+        },
+        {
+            name: 'KSRTC Swift Bus',
+            vehicleType: 'BUS',
+            waypoints: [
+                { lat: 10.0200, lng: 76.3110 },
+                { lat: 10.0245, lng: 76.3118 },
+                { lat: 10.0290, lng: 76.3125 },
+            ],
+            speed: 42,
+        },
+        {
+            name: 'EMS Kerala Ambulance',
+            vehicleType: 'AMBULANCE',
+            waypoints: [
+                { lat: 10.0180, lng: 76.3110 },
+                { lat: 10.0230, lng: 76.3115 },
+                { lat: 10.0280, lng: 76.3120 },
+            ],
+            speed: 80,
+        },
+        {
+            name: 'Heavy Freight Truck',
+            vehicleType: 'TRUCK',
+            waypoints: [
+                { lat: 10.0270, lng: 76.3105 },
+                { lat: 10.0250, lng: 76.3110 },
+                { lat: 10.0220, lng: 76.3115 },
+            ],
+            speed: 32,
+        },
+        {
+            name: 'School Crossing Pedestrian',
+            vehicleType: 'PEDESTRIAN',
+            waypoints: [
+                { lat: 10.0261, lng: 76.3120 },
+                { lat: 10.0261, lng: 76.3130 },
+            ],
+            speed: 4,
+        },
+    ],
     headOn: [
         {
             name: 'Vehicle A (Northbound)',

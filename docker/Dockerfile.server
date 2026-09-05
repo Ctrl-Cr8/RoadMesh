@@ -24,8 +24,7 @@ COPY src/dashboard ./src/dashboard
 
 ENV NODE_ENV=production
 ENV HTTP_PORT=3000
-ENV MQTT_PORT=1883
 
-EXPOSE 3000 1883
+EXPOSE 3000
 
 CMD ["node", "dist/index.js"]

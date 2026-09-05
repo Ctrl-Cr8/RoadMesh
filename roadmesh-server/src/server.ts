@@ -1,15 +1,16 @@
 // ─── RoadMesh Server ────────────────────────────────────────────────────────
 //
-// Express HTTP server + WebSocket upgrade + MQTT broker.
-// All protocol handlers share a single VehicleStore.
+// Express HTTP server + WebSocket upgrade.
+// High-performance, pure-software V2X architecture for mobile apps & simulators.
 
 import express from 'express';
 import cors from 'cors';
 import http from 'http';
+import path from 'path';
+import fs from 'fs';
 import rateLimit from 'express-rate-limit';
 import { VehicleStore } from './vehicles/store';
 import { WebSocketHandler } from './protocol/websocket';
-import { MqttHandler } from './protocol/mqtt';
 import { ServerConfig, DEFAULT_CONFIG } from './vehicles/types';
 import { createLogger } from './utils/logger';
 
@@ -20,7 +21,6 @@ export class RoadMeshServer {
     private httpServer: http.Server;
     private store: VehicleStore;
     private wsHandler: WebSocketHandler;
-    private mqttHandler: MqttHandler;
     private config: ServerConfig;
 
     // Prometheus-style counters
@@ -28,7 +28,6 @@ export class RoadMeshServer {
         positionUpdatesTotal: 0,
         alertsGeneratedTotal: 0,
         wsConnectsTotal: 0,
-        mqttConnectsTotal: 0,
         validationErrorsTotal: 0,
         startedAt: Date.now(),
     };
@@ -41,9 +40,8 @@ export class RoadMeshServer {
         // Shared vehicle store
         this.store = new VehicleStore(this.config);
 
-        // Protocol handlers
+        // WebSocket protocol handler
         this.wsHandler = new WebSocketHandler(this.store);
-        this.mqttHandler = new MqttHandler(this.store);
 
         this.setupMiddleware();
         this.setupRoutes();
@@ -67,7 +65,16 @@ export class RoadMeshServer {
         this.app.use('/api', limiter);
 
         // Serve admin dashboard static files
-        this.app.use('/dashboard', express.static(`${__dirname}/../dashboard`));
+        const candidatePaths = [
+            path.join(__dirname, '../src/dashboard'),
+            path.join(__dirname, 'dashboard'),
+            path.join(__dirname, '../dashboard'),
+        ];
+        const dashboardDir = candidatePaths.find(p => fs.existsSync(p)) || candidatePaths[0];
+        this.app.use('/dashboard', express.static(dashboardDir));
+        this.app.get('/dashboard', (_req, res) => {
+            res.sendFile(path.join(dashboardDir, 'index.html'));
+        });
     }
 
     /**
@@ -89,7 +96,6 @@ export class RoadMeshServer {
             res.json({
                 ...storeStats,
                 wsClients: this.wsHandler.getClientCount(),
-                mqttClients: this.mqttHandler.getClientCount(),
                 config: {
                     nearbyRadiusMeters: this.config.nearbyRadiusMeters,
                     vehicleTimeoutMs: this.config.vehicleTimeoutMs,
@@ -121,10 +127,6 @@ export class RoadMeshServer {
                 `# TYPE roadmesh_ws_connections_total counter`,
                 `roadmesh_ws_connections_total ${this.metrics.wsConnectsTotal}`,
                 ``,
-                `# HELP roadmesh_mqtt_connections_total Total MQTT connections accepted`,
-                `# TYPE roadmesh_mqtt_connections_total counter`,
-                `roadmesh_mqtt_connections_total ${this.metrics.mqttConnectsTotal}`,
-                ``,
                 `# HELP roadmesh_validation_errors_total Total message validation errors`,
                 `# TYPE roadmesh_validation_errors_total counter`,
                 `roadmesh_validation_errors_total ${this.metrics.validationErrorsTotal}`,
@@ -148,7 +150,7 @@ export class RoadMeshServer {
             res.json({
                 name: 'RoadMesh Server',
                 version: '1.0.0',
-                description: 'Cooperative Vehicle Awareness Platform',
+                description: 'Smartphone-Based Cooperative Vehicle Awareness Platform',
                 endpoints: {
                     health: '/health',
                     stats: '/stats',
@@ -156,13 +158,6 @@ export class RoadMeshServer {
                     vehicles: '/vehicles',
                     websocket: '/ws',
                     dashboard: '/dashboard',
-                },
-                mqtt: {
-                    port: this.config.mqttPort,
-                    topics: {
-                        position: 'roadmesh/vehicles/{vehicleId}/position',
-                        nearby: 'roadmesh/nearby/{vehicleId}',
-                    },
                 },
             });
         });
@@ -182,9 +177,6 @@ export class RoadMeshServer {
         // Attach WebSocket handler to HTTP server
         this.wsHandler.attach(this.httpServer);
 
-        // Start MQTT broker
-        this.mqttHandler.start(this.config.mqttPort);
-
         // Start stale vehicle cleanup
         this.store.startCleanup();
 
@@ -194,10 +186,9 @@ export class RoadMeshServer {
 ╔══════════════════════════════════════════════════════╗
 ║                                                      ║
 ║     🚗  RoadMesh Server v1.0.0                       ║
-║     Cooperative Vehicle Awareness Platform            ║
+║     100% Smartphone-Based V2X Safety Platform        ║
 ║                                                      ║
 ║     HTTP/WS:    http://localhost:${this.config.httpPort}              ║
-║     MQTT:       mqtt://localhost:${this.config.mqttPort}              ║
 ║     WebSocket:  ws://localhost:${this.config.httpPort}/ws             ║
 ║     Dashboard:  http://localhost:${this.config.httpPort}/dashboard    ║
 ║     Metrics:    http://localhost:${this.config.httpPort}/metrics      ║
@@ -217,7 +208,6 @@ export class RoadMeshServer {
         return new Promise((resolve) => {
             log.info('Shutting down RoadMesh server...');
             this.store.stopCleanup();
-            this.mqttHandler.stop();
             this.httpServer.close(() => {
                 log.info('Server stopped cleanly.');
                 resolve();
