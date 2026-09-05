@@ -29,7 +29,6 @@ docker-compose up -d --build
 | Variable | Default | Description |
 |---|---|---|
 | `HTTP_PORT` | `3000` | Server HTTP & WebSocket port |
-| `MQTT_PORT` | `1883` | Aedes MQTT broker port |
 | `NEARBY_RADIUS_METERS` | `500` | Geohash spatial query radius |
 | `VEHICLE_TIMEOUT_MS` | `10000` | Stale vehicle eviction timeout |
 | `COLLISION_HORIZON_SEC` | `10` | Trajectory prediction lookahead horizon |

@@ -1,25 +1,28 @@
-# 🚗 RoadMesh — Cooperative Vehicle Awareness Platform
+# 🚗 RoadMesh — 100% Smartphone-Based Cooperative Vehicle Awareness & V2X Platform
 
-[![Server CI](https://github.com/mizhab-as/major-project/actions/workflows/server-ci.yml/badge.svg)](https://github.com/mizhab-as/major-project/actions/workflows/server-ci.yml)
-[![Flutter CI](https://github.com/mizhab-as/major-project/actions/workflows/flutter-ci.yml/badge.svg)](https://github.com/mizhab-as/major-project/actions/workflows/flutter-ci.yml)
+[![Server CI](https://github.com/mizhabas/major-project/actions/workflows/server-ci.yml/badge.svg)](https://github.com/mizhabas/major-project/actions/workflows/server-ci.yml)
+[![Flutter CI](https://github.com/mizhabas/major-project/actions/workflows/flutter-ci.yml/badge.svg)](https://github.com/mizhabas/major-project/actions/workflows/flutter-ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter)](https://flutter.dev)
 [![Node.js](https://img.shields.io/badge/Node.js-20.x-339933?logo=node.js)](https://nodejs.org)
 
-**RoadMesh** is a real-time, multi-protocol Cooperative Vehicle Awareness and Collision Warning Platform. Vehicles broadcast location telemetry over WebSocket or MQTT, and the central AI prediction engine computes spatial collision risks up to 10 seconds ahead, alerting drivers via voice, haptics, and visual warnings.
+**RoadMesh** is a real-time, **zero-hardware, 100% smartphone-based** Cooperative Vehicle Awareness and Collision Warning Platform designed specifically for high-density, mixed-traffic environments like Indian roads. Vehicles broadcast live smartphone telemetry over ultra-low-latency WebSockets, and the spatial AI prediction engine computes potential collision risks up to 10 seconds ahead—alerting drivers via real-time voice, haptics, and visual HUD warnings.
+
+> **💡 Zero-Hardware V2X Paradigm**: Traditional V2X relies on expensive automotive DSRC/5G chips ($600+ / ₹50,000+). RoadMesh democratizes V2X safety by turning any regular Android/iOS smartphone into an intelligent connected vehicle node with zero extra hardware.
 
 ---
 
 ## 🌟 Key Features
 
-- **⚡ Sub-Second Latency Telemetry**: Multi-protocol support (WebSocket for mobile apps, MQTT for ESP32 IoT hardware).
-- **🧠 Geohash Spatial Indexing**: Precision 6 geohash grid lookup evaluating 9 neighboring cells for sub-millisecond nearby vehicle lookup.
-- **🎯 Predictive Collision AI**: Trajectory projection and relative velocity dot-product Time-of-Closest-Approach (TCA) calculation.
-- **🎨 Glassmorphic HUD App**: Modern Flutter dark UI with Orbitron font, glassmorphism cards, animated radar, and custom particle background.
-- **📊 Real-Time Admin Web Dashboard**: Interactive Leaflet.js map tracking all active vehicles and collision alerts.
+- **📱 Pure Smartphone V2X (Zero Hardware)**: No aftermarket dongles, OBD units, or microcontrollers needed. Runs directly on drivers' existing smartphones.
+- **⚡ Sub-Second Latency Telemetry**: Ultra-lightweight JSON telemetry payloads transmitted over high-speed WebSockets.
+- **🧠 Geohash Spatial Indexing**: Precision 6 geohash grid lookup evaluating 9 neighboring cells for sub-millisecond nearby vehicle lookup without $O(N^2)$ bottlenecks.
+- **🎯 Predictive Collision AI**: Trajectory projection and relative velocity dot-product Time-of-Closest-Approach (TCA) calculation up to 10 seconds ahead.
+- **🎨 Glassmorphic HUD App**: Modern Flutter dark UI with Orbitron font, glassmorphic cards, animated radar, and custom particle background.
+- **📊 Real-Time Admin Web Dashboard**: Interactive Leaflet.js map tracking all active vehicles, speeds, headings, and collision alerts.
 - **🛠️ Scenario Simulator**: 7 preset collision simulation scenarios (Head-On, Blind Corner, Overtaking, Emergency, Intersection, School Zone, Highway Merge) controllable via web UI.
 - **🐳 One-Command Docker Setup**: Fully containerized stack with Nginx reverse proxy.
-- **🧪 Test Suite**: 61 automated unit and integration tests passing.
+- **🧪 Comprehensive Test Suite**: Fully automated unit and integration tests passing.
 
 ---
 
@@ -27,16 +30,15 @@
 
 ```mermaid
 graph TB
-    subgraph Clients["📱 Telemetry Clients"]
-        M1["Flutter App (iOS/Android)"]
-        E1["ESP32 IoT Node"]
-        SIM["Browser Scenario Engine"]
+    subgraph Clients["📱 Telemetry Clients (Pure Software)"]
+        M1["Flutter App (Driver 1 - Android/iOS)"]
+        M2["Flutter App (Driver 2 - Android/iOS)"]
+        SIM["Scenario Simulation Engine"]
     end
 
     subgraph Server["🖥️ RoadMesh Core (Docker)"]
         direction TB
         WS["WebSocket Server (/ws)"]
-        MQ["Aedes MQTT Broker (:1883)"]
         VS["VehicleStore (In-Memory)"]
         SG["Geohash Spatial Grid"]
         CP["Collision Predictor Engine"]
@@ -45,15 +47,13 @@ graph TB
     end
 
     M1 -->|WebSocket JSON| WS
+    M2 -->|WebSocket JSON| WS
     SIM -->|WebSocket JSON| WS
-    E1 -->|MQTT Telemetry| MQ
 
     WS --> VS
-    MQ --> VS
     VS --> SG
     SG --> CP
-    CP -->|Alert JSON| WS
-    CP -->|Alert JSON| MQ
+    CP -->|Safety Alerts JSON| WS
     DASH --> WS
 ```
 
@@ -79,7 +79,7 @@ docker-compose up -d --build
 ```bash
 cd roadmesh-server
 npm install
-npm test          # Run 61 unit & integration tests
+npm test          # Run automated unit & integration tests
 npm run dev       # Start dev server on http://localhost:3000
 ```
 
@@ -90,31 +90,13 @@ flutter pub get
 flutter run       # Launch on connected emulator/device
 ```
 
-### 3. ESP32 IoT Node (`roadmesh-node`)
-Open `roadmesh-node` in VS Code with PlatformIO extension and flash to ESP32 board. See [Hardware Setup Guide](docs/HARDWARE_SETUP.md).
-
 ---
 
 ## 📚 Documentation Index
 
-- 📖 [API & Protocol Reference](docs/API_REFERENCE.md) — WebSocket message formats & MQTT topic structures.
-- 🛠️ [Hardware Setup Guide](docs/HARDWARE_SETUP.md) — ESP32 wiring diagram, pinout table, and PlatformIO guide.
+- 📖 [API & Protocol Reference](docs/API_REFERENCE.md) — WebSocket message formats & REST endpoints.
 - 🐳 [Deployment Guide](docs/DEPLOYMENT.md) — Docker Compose details & environment variables.
 - 📐 [Architecture Reference](docs/ARCHITECTURE.md) — Geohashing spatial grid and TCA collision calculation algorithms.
-
----
-
-## 📜 Commit Verification Summary (14 Commits)
-
-| Phase | Focus | Commits |
-|---|---|---|
-| **Phase 1** | Backend Hardening & Tests | `456f97c`, `7b44b09` |
-| **Phase 2** | Flutter UI Design System | `82dd595`, `9320fb4` |
-| **Phase 3** | Flutter Services Hardening | `7174a7f`, `...` |
-| **Phase 4** | New App Screens & Dashboard | `9a043cd`, `6e146c2` |
-| **Phase 5** | ESP32 Refactor & Web Dashboard | `07b4115`, `814c8ee` |
-| **Phase 6** | Simulator Web UI & Docker | `b59ebf2`, `4fcc956` |
-| **Phase 7** | Docs, CI Workflows & Final Polish | Commits 13 & 14 |
 
 ---
 

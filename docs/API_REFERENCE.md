@@ -1,6 +1,6 @@
 # RoadMesh API & Protocol Reference
 
-This document provides complete details on the WebSocket and MQTT protocol messages used across the **RoadMesh** platform.
+This document provides complete details on the WebSocket and REST protocol messages used across the **RoadMesh** platform.
 
 ---
 
@@ -101,14 +101,12 @@ Broadcast by the server to active clients in response to position updates.
 
 ---
 
-## 📡 MQTT Protocol
+## 🌐 REST API Endpoints
 
-IoT nodes (ESP32) publish and subscribe over MQTT at `mqtt://<host>:1883`.
-
-### Topics & Payloads
-
-| Topic | Direction | Description | Payload Example |
-|---|---|---|---|
-| `roadmesh/vehicles/{vehicleId}/position` | Node → Server | Publish GPS coordinate | `{"lat": 10.026, "lng": 76.312, "speed": 40, "heading": 90, "vehicleType": "CAR"}` |
-| `roadmesh/nearby/{vehicleId}` | Server → Node | Receive collision alerts | `{"alerts": [{"riskLevel": "RED", "alertType": "HEAD_ON", "distance": 45}]}` |
-| `roadmesh/heartbeat` | Node → Server | Client heartbeat | `{"id": "esp32-aabbcc"}` |
+| Endpoint | Method | Description |
+|---|---|---|
+| `/health` | GET | Server health status & uptime |
+| `/stats` | GET | Real-time vehicle counts, active WebSocket clients, and spatial configuration |
+| `/vehicles` | GET | List of all currently registered active vehicles |
+| `/metrics` | GET | Prometheus-compatible metrics stream |
+| `/dashboard` | GET | Real-time web tracking dashboard |
