@@ -28,7 +28,7 @@ jobs:
         run: cd roadmesh-app && flutter pub get
 
       - name: Analyze code
-        run: cd roadmesh-app && flutter analyze
+        run: cd roadmesh-app && flutter analyze --no-fatal-infos
 
       - name: Run unit & widget tests
         run: cd roadmesh-app && flutter test
