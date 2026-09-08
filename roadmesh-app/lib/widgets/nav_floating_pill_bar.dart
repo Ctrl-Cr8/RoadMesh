@@ -21,6 +21,7 @@ class NavFloatingPillBar extends StatefulWidget {
   final VoidCallback onSearchTap;
   final VoidCallback onStartNavigation;
   final VoidCallback? onCancelNavigation;
+  final VoidCallback? onDismissPreview;
   final VoidCallback? onStepByStepTap;
   final bool isConnected;
   final VoidCallback? onFilterTap;
@@ -42,6 +43,7 @@ class NavFloatingPillBar extends StatefulWidget {
     required this.onSearchTap,
     required this.onStartNavigation,
     this.onCancelNavigation,
+    this.onDismissPreview,
     this.onStepByStepTap,
     this.onFilterTap,
     this.onRadarRangeTap,
@@ -63,7 +65,7 @@ class _NavFloatingPillBarState extends State<NavFloatingPillBar> {
 
   String _getModeDuration(TransportMode mode) {
     final distanceMeters = widget.activeRoute?.totalDistanceMeters ??
-        (widget.previewDestination?.distanceFromUserMeters ?? 2200.0);
+        (widget.previewDestination?.distanceFromUserMeters ?? 0.0);
     final distanceKm = distanceMeters / 1000.0;
 
     int minutes;
@@ -93,7 +95,8 @@ class _NavFloatingPillBarState extends State<NavFloatingPillBar> {
 
   String get _etaString {
     final now = DateTime.now();
-    final durationSeconds = widget.activeRoute?.estimatedSeconds ?? 360;
+    final durationSeconds = widget.activeRoute?.estimatedSeconds ??
+        (((widget.previewDestination?.distanceFromUserMeters ?? 2000.0) / 1000.0 / 35.0 * 3600).round());
     final arrival = now.add(Duration(seconds: durationSeconds));
     return DateFormat('HH:mm').format(arrival);
   }
@@ -102,14 +105,26 @@ class _NavFloatingPillBarState extends State<NavFloatingPillBar> {
     if (widget.activeRoute != null) {
       return widget.activeRoute!.formattedDuration;
     }
-    return '6 min';
+    if (widget.previewDestination != null) {
+      final d = widget.previewDestination!.distanceFromUserMeters ?? 0.0;
+      final mins = (d / 1000.0 / 35.0 * 60).round().clamp(1, 999);
+      return '$mins min';
+    }
+    return '';
   }
 
   String get _distanceString {
     if (widget.activeRoute != null) {
       return widget.activeRoute!.formattedDistance;
     }
-    return '2.2 km';
+    if (widget.previewDestination != null) {
+      final d = widget.previewDestination!.distanceFromUserMeters ?? 0.0;
+      if (d >= 1000) {
+        return '${(d / 1000.0).toStringAsFixed(1)} km';
+      }
+      return '${d.round()} m';
+    }
+    return '';
   }
 
   int get _trafficLightsCount {
@@ -117,12 +132,14 @@ class _NavFloatingPillBarState extends State<NavFloatingPillBar> {
       final steps = widget.activeRoute!.steps.length;
       return (steps / 2).ceil().clamp(1, 12);
     }
-    return 5;
+    return 3;
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isExpanded || widget.previewDestination != null) {
+    // Only show route overview sheet if a real destination is allocated or navigation is active!
+    final hasAllocatedDestination = widget.activeRoute != null || widget.previewDestination != null;
+    if (hasAllocatedDestination && (_isExpanded || widget.previewDestination != null)) {
       return _buildExpandedRouteSheet();
     }
     return _buildFloatingCapsulePill();
@@ -167,7 +184,11 @@ class _NavFloatingPillBarState extends State<NavFloatingPillBar> {
           Expanded(
             child: GestureDetector(
               onTap: () {
-                setState(() => _isExpanded = true);
+                if (isNavigating) {
+                  setState(() => _isExpanded = true);
+                } else {
+                  widget.onSearchTap();
+                }
               },
               behavior: HitTestBehavior.opaque,
               child: isNavigating
@@ -289,7 +310,11 @@ class _NavFloatingPillBarState extends State<NavFloatingPillBar> {
           // Right Menu Button
           InkWell(
             onTap: () {
-              setState(() => _isExpanded = true);
+              if (isNavigating) {
+                setState(() => _isExpanded = true);
+              } else {
+                widget.onSearchTap();
+              }
             },
             borderRadius: BorderRadius.circular(16),
             child: Container(
@@ -431,6 +456,9 @@ class _NavFloatingPillBarState extends State<NavFloatingPillBar> {
                 icon: Icon(Icons.close_rounded, color: subColor, size: 22),
                 onPressed: () {
                   setState(() => _isExpanded = false);
+                  if (widget.onDismissPreview != null) {
+                    widget.onDismissPreview!();
+                  }
                   if (widget.activeRoute != null && widget.onCancelNavigation != null) {
                     widget.onCancelNavigation!();
                   }

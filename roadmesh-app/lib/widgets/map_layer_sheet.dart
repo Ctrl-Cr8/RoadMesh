@@ -129,7 +129,7 @@ class MapLayerSheet extends StatelessWidget {
               onChanged: onTrafficToggled,
               contentPadding: EdgeInsets.zero,
               activeTrackColor: const Color(0xFF2563EB),
-              activeThumbColor: Colors.white,
+              activeColor: Colors.white,
               title: const Text(
                 'Live Traffic Congestion',
                 style: TextStyle(
@@ -169,7 +169,7 @@ class MapLayerSheet extends StatelessWidget {
               onChanged: on3DModeToggled,
               contentPadding: EdgeInsets.zero,
               activeTrackColor: const Color(0xFF2563EB),
-              activeThumbColor: Colors.white,
+              activeColor: Colors.white,
               title: const Text(
                 '3D Perspective Cockpit',
                 style: TextStyle(

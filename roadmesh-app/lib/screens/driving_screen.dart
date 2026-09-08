@@ -5,7 +5,7 @@
 // - V2X Radar Detection Range configurable from 0m (OFF) to 300m
 // - Multi-layer map views (Friendly Road, Terrain, Satellite, Dark Tactical)
 // - Live Google Traffic layer toggle and 2D/3D perspective camera controls
-// - Real-time speed limit badge and overspeed alerts
+// - Real-time vehicle speedometer HUD
 // - Instant camera re-center and compass North orientation
 
 import 'dart:async';
@@ -67,8 +67,8 @@ class _DrivingScreenState extends State<DrivingScreen>
   bool _showGeopositionBanner = true;
   bool _isMapReady = false;
 
-  // V2X Radar Detection Range in Meters (0 = OFF, up to 300m)
-  int _radarRangeMeters = 300;
+  // V2X Radar Detection Range in Meters (0 = OFF, up to 500m matching server)
+  int _radarRangeMeters = 500;  // Default: full server range (matches NEARBY_RADIUS_METERS)
 
   // Active turn-by-turn navigation state
   ActiveNavigationRoute? _activeRoute;
@@ -78,11 +78,6 @@ class _DrivingScreenState extends State<DrivingScreen>
   // Dropped Pin destination from map tap/long-press
   NavDestination? _droppedPinDestination;
 
-  // Road speed limit in km/h (automatically detected from road classification)
-  double _speedLimitKmh = 40.0;
-  bool _showSpeedLimitSign = true;
-  bool _isAutoSpeedLimit = true;
-  String _currentSpeedZoneName = 'Local Road';
 
   // Google Maps Clean Daytime Light style JSON (Apple / Yandex / 2GIS aesthetic)
   static const String _lightMapStyle = '''
@@ -130,8 +125,6 @@ class _DrivingScreenState extends State<DrivingScreen>
   @override
   void initState() {
     super.initState();
-    _speedLimitKmh = 40.0;
-    _currentSpeedZoneName = 'Local Road';
 
     _riskPulseController = AnimationController(
       vsync: this,
@@ -308,16 +301,10 @@ class _DrivingScreenState extends State<DrivingScreen>
 
       if (!mounted) return;
 
-      final activeRoadName = newRoute.steps.isNotEmpty ? newRoute.steps[0].streetName : dest.title;
-
       setState(() {
         _activeRoute = newRoute;
         _currentStepIndex = 0;
         _isCalculatingRoute = false;
-        _currentSpeedZoneName = activeRoadName;
-        if (_isAutoSpeedLimit) {
-          _speedLimitKmh = RouteService.getDesignatedSpeedLimit(activeRoadName);
-        }
       });
     } catch (e) {
       if (mounted) {
@@ -330,10 +317,11 @@ class _DrivingScreenState extends State<DrivingScreen>
 
   void _maybeUpdateLocationName(LatLng pos) {
     if (_lastGeocodedPos != null &&
-        RouteService.distanceBetween(_lastGeocodedPos!, pos) < 150.0) {
+        RouteService.distanceBetween(_lastGeocodedPos!, pos) < 80.0) {
       return;
     }
     _lastGeocodedPos = pos;
+
     RouteService.reverseGeocode(pos).then((dest) {
       if (mounted && dest.title.isNotEmpty && dest.title != 'Selected Location' && dest.title != 'Dropped Pin') {
         setState(() {
@@ -373,8 +361,8 @@ class _DrivingScreenState extends State<DrivingScreen>
       }
     }
 
-    final mapLink = 'https://maps.google.com/?q=${pos.latitude},${pos.longitude}';
-    final shareText = '📍 My live location on RoadMesh Navigation:\n$mapLink';
+    final mapLink = 'https://www.google.com/maps/search/?api=1&query=${pos.latitude},${pos.longitude}';
+    final shareText = '📍 My live location on Google Maps:\n$mapLink';
     // ignore: deprecated_member_use
     Share.share(shareText, subject: 'Live RoadMesh Geoposition');
   }
@@ -401,11 +389,7 @@ class _DrivingScreenState extends State<DrivingScreen>
       );
     }
 
-    // Warm up Speed Camera & Hazard Ripple markers
-    _markerCache['speed_camera'] = await VehicleMarkerPainter.getSpeedCameraMarker(
-      speedLimit: _speedLimitKmh.toInt(),
-      note: 'You often skip it • Stay alert!',
-    );
+    // Warm up Hazard Ripple marker
     _markerCache['hazard_ripple'] = await VehicleMarkerPainter.getHazardRippleMarker();
 
     if (mounted) {
@@ -519,23 +503,6 @@ class _DrivingScreenState extends State<DrivingScreen>
       );
     }
 
-    // 4. On-Road Speed Camera Alert Marker (Image 2)
-    if (_activeRoute != null && _activeRoute!.polylinePoints.isNotEmpty) {
-      final cameraIdx = math.min(10, _activeRoute!.polylinePoints.length - 1);
-      final cameraPos = _activeRoute!.polylinePoints[cameraIdx];
-      final cameraIcon = _markerCache['speed_camera'];
-      if (cameraIcon != null) {
-        markers.add(
-          Marker(
-            markerId: const MarkerId('nav_speed_camera'),
-            position: cameraPos,
-            icon: cameraIcon,
-            anchor: const Offset(0.5, 0.85),
-            zIndexInt: 95,
-          ),
-        );
-      }
-    }
 
     // 5. Radar Hazard Ripple (Image 1)
     if (provider.activeAlerts.isNotEmpty && _markerCache['hazard_ripple'] != null) {
@@ -636,11 +603,11 @@ class _DrivingScreenState extends State<DrivingScreen>
   /// Clean map view: zero hardcoded circles!
   Set<Circle> _buildCircles(DrivingProvider provider) => const <Circle>{};
 
-  /// Smoothly follows the driver in 2D/3D perspective (zoom 19.3 when navigating, 17.5 in free drive).
+  /// Smoothly follows the driver in 2D/3D perspective (zoom 18.0 when navigating, 16.5 in free drive).
   void _followDriver(DrivingProvider provider, LatLng carPos, double carHeading) {
     if (!_isCameraFollowLocked || _mapController == null) return;
 
-    final targetZoom = _activeRoute != null ? 19.3 : 17.5;
+    final targetZoom = _activeRoute != null ? 18.0 : 16.5;
 
     _animateCameraProgrammatically(
       CameraUpdate.newCameraPosition(
@@ -658,7 +625,7 @@ class _DrivingScreenState extends State<DrivingScreen>
   /// Re-centers the camera smoothly onto the driver and locks tracking.
   void _recenterOnDriver(DrivingProvider provider) {
     final (carPos, carHeading, _) = _resolveCarTelemetry(provider);
-    final targetZoom = _activeRoute != null ? 19.3 : 17.5;
+    final targetZoom = _activeRoute != null ? 18.0 : 16.5;
 
     _animateCameraProgrammatically(
       CameraUpdate.newCameraPosition(
@@ -717,108 +684,7 @@ class _DrivingScreenState extends State<DrivingScreen>
     _recenterOnDriver(provider);
   }
 
-  void _reportHazard() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: _isDarkStyleActive ? const Color(0xFF131C2E) : Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.withValues(alpha: 0.4),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'REPORT ROAD HAZARD',
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
-                color: _isDarkStyleActive ? Colors.white : AppColors.navTextDark,
-                letterSpacing: 0.5,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                _hazardOption(Icons.camera_alt_rounded, 'Speed Camera', Colors.red),
-                _hazardOption(Icons.warning_amber_rounded, 'Road Hazard', Colors.orange),
-                _hazardOption(Icons.traffic_rounded, 'Traffic Jam', Colors.amber),
-                _hazardOption(Icons.car_crash_rounded, 'Accident', Colors.redAccent),
-                _hazardOption(Icons.local_police_rounded, 'Police / Radar', Colors.blue),
-                _hazardOption(Icons.construction_rounded, 'Road Works', Colors.deepOrange),
-              ],
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _hazardOption(IconData icon, String label, Color color) {
-    return InkWell(
-      onTap: () {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle_rounded, color: AppColors.safeGreen, size: 18),
-                const SizedBox(width: 8),
-                Text('Hazard reported to V2X Mesh: $label'),
-              ],
-            ),
-            backgroundColor: const Color(0xFF0F172A),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      },
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        width: 100,
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: _isDarkStyleActive ? Colors.white : AppColors.navTextDark,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   void _showStepByStepSheet() {
     if (_activeRoute == null || _activeRoute!.steps.isEmpty) return;
@@ -999,18 +865,11 @@ class _DrivingScreenState extends State<DrivingScreen>
 
       if (!mounted) return;
 
-      final activeRoadName = (route.steps.isNotEmpty ? route.steps[0].streetName : dest.title);
-      final designatedLimit = RouteService.getDesignatedSpeedLimit(activeRoadName);
-
       setState(() {
         _activeRoute = route;
         _currentStepIndex = 0;
         _isCameraFollowLocked = true;
         _isCalculatingRoute = false;
-        _currentSpeedZoneName = activeRoadName;
-        if (_isAutoSpeedLimit) {
-          _speedLimitKmh = designatedLimit;
-        }
       });
 
       // Camera focuses directly on vehicle's current position and heading
@@ -1027,7 +886,7 @@ class _DrivingScreenState extends State<DrivingScreen>
         CameraUpdate.newCameraPosition(
           CameraPosition(
             target: origin,
-            zoom: 19.3,
+            zoom: 18.0,
             bearing: navBearing,
             tilt: _is3DMode ? 38.0 : 0.0,
           ),
@@ -1107,194 +966,7 @@ class _DrivingScreenState extends State<DrivingScreen>
     }
   }
 
-  /// Dialog to view automatic road speed limit zone and toggle manual overrides.
-  void _showSpeedLimitDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: const Row(
-            children: [
-              Icon(Icons.speed_rounded, color: Color(0xFF2563EB), size: 24),
-              SizedBox(width: 10),
-              Text(
-                'ROAD SPEED LIMIT',
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF0F172A),
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Live Auto Zone Card
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: const Color(0xFFE2E8F0),
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: _isAutoSpeedLimit ? const Color(0xFF10B981) : Colors.amber,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          _isAutoSpeedLimit ? 'AUTO-DETECTED ROAD ZONE' : 'MANUAL OVERRIDE ACTIVE',
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            color: _isAutoSpeedLimit ? const Color(0xFF10B981) : Colors.amber.shade800,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      _currentSpeedZoneName,
-                      style: const TextStyle(
-                        fontFamily: 'Inter',
-                        color: Color(0xFF0F172A),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Designated Limit: ${_speedLimitKmh.toInt()} km/h',
-                      style: const TextStyle(
-                        fontFamily: 'Inter',
-                        color: Color(0xFF2563EB),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Road speed limits are automatically determined from road classification (College/School: 30 km/h, Residential: 40 km/h, Urban: 50 km/h, Highway: 70-80 km/h).',
-                style: TextStyle(fontFamily: 'Inter', color: Color(0xFF64748B), fontSize: 11),
-              ),
-              const SizedBox(height: 14),
 
-              // Auto-Detect Toggle
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Auto-Detect From Road',
-                    style: TextStyle(fontFamily: 'Inter', color: Color(0xFF0F172A), fontSize: 13, fontWeight: FontWeight.w700),
-                  ),
-                  Switch(
-                    value: _isAutoSpeedLimit,
-                    activeTrackColor: const Color(0xFF2563EB),
-                    activeThumbColor: Colors.white,
-                    onChanged: (val) {
-                      setState(() {
-                        _isAutoSpeedLimit = val;
-                        if (val) {
-                          _speedLimitKmh = RouteService.getDesignatedSpeedLimit(_currentSpeedZoneName);
-                        }
-                      });
-                      setDialogState(() {});
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-
-              const Text(
-                'MANUAL OVERRIDE:',
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF64748B),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [30, 40, 50, 60, 80, 100].map((speed) {
-                  final isSelected = _speedLimitKmh == speed.toDouble() && !_isAutoSpeedLimit;
-                  return ChoiceChip(
-                    label: Text('$speed km/h'),
-                    selected: isSelected,
-                    selectedColor: const Color(0xFF2563EB),
-                    backgroundColor: const Color(0xFFF1F5F9),
-                    labelStyle: TextStyle(
-                      fontFamily: 'Inter',
-                      color: isSelected ? Colors.white : const Color(0xFF334155),
-                      fontWeight: FontWeight.w700,
-                      fontSize: 11,
-                    ),
-                    onSelected: (_) {
-                      setState(() {
-                        _speedLimitKmh = speed.toDouble();
-                        _isAutoSpeedLimit = false;
-                        _showSpeedLimitSign = true;
-                      });
-                      Navigator.pop(ctx);
-                    },
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 14),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Show Badge on Cockpit', style: TextStyle(fontFamily: 'Inter', color: Color(0xFF0F172A), fontSize: 12, fontWeight: FontWeight.w600)),
-                  Switch(
-                    value: _showSpeedLimitSign,
-                    activeTrackColor: const Color(0xFF2563EB),
-                    activeThumbColor: Colors.white,
-                    onChanged: (val) {
-                      setState(() {
-                        _showSpeedLimitSign = val;
-                      });
-                      setDialogState(() {});
-                    },
-                  ),
-                ],
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('CLOSE', style: TextStyle(fontFamily: 'Inter', color: Color(0xFF2563EB), fontWeight: FontWeight.w800)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   void _cancelNavigation() {
     setState(() {
@@ -1302,6 +974,7 @@ class _DrivingScreenState extends State<DrivingScreen>
       _currentStepIndex = 0;
       _droppedPinDestination = null;
       _isCameraFollowLocked = true;
+
     });
 
     final provider = context.read<DrivingProvider>();
@@ -1310,7 +983,7 @@ class _DrivingScreenState extends State<DrivingScreen>
       CameraUpdate.newCameraPosition(
         CameraPosition(
           target: carPos,
-          zoom: 17.5,
+          zoom: 16.5,
           bearing: carHeading,
           tilt: _is3DMode ? 35.0 : 0.0,
         ),
@@ -1478,16 +1151,8 @@ class _DrivingScreenState extends State<DrivingScreen>
           if (distanceToNextTurn < 25.0 && _currentStepIndex < _activeRoute!.steps.length - 1) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted && _activeRoute != null) {
-                final nextIdx = _currentStepIndex + 1;
-                final nextRoad = nextIdx < _activeRoute!.steps.length
-                    ? _activeRoute!.steps[nextIdx].streetName
-                    : '';
                 setState(() {
-                  _currentStepIndex = nextIdx;
-                  if (_isAutoSpeedLimit && nextRoad.isNotEmpty) {
-                    _currentSpeedZoneName = nextRoad;
-                    _speedLimitKmh = RouteService.getDesignatedSpeedLimit(nextRoad);
-                  }
+                  _currentStepIndex = _currentStepIndex + 1;
                 });
               }
             });
@@ -1502,7 +1167,7 @@ class _DrivingScreenState extends State<DrivingScreen>
               GoogleMap(
                 initialCameraPosition: CameraPosition(
                   target: LatLng(centerLat, centerLng),
-                  zoom: 17.5,
+                  zoom: 16.5,
                   tilt: _is3DMode ? 35.0 : 0.0,
                 ),
                 mapType: _currentMapType,
@@ -1533,7 +1198,14 @@ class _DrivingScreenState extends State<DrivingScreen>
                     });
                   }
                 },
-                onTap: (pos) => _handleMapTap(pos, provider),
+                onTap: (pos) {
+                  // Single tap clears preview destination pin if active (matches Google Maps behavior)
+                  if (_droppedPinDestination != null) {
+                    setState(() {
+                      _droppedPinDestination = null;
+                    });
+                  }
+                },
                 onLongPress: (pos) => _handleMapTap(pos, provider),
                 markers: _buildMarkers(provider),
                 polylines: _buildPolylines(carPos),
@@ -1623,7 +1295,7 @@ class _DrivingScreenState extends State<DrivingScreen>
               // ─── 4. Top-Left Turn Maneuver Card (Image 2) ──────────
               if (_activeRoute != null && currentStep != null)
                 Positioned(
-                  top: MediaQuery.of(context).padding.top + (_showGeopositionBanner ? 84 : 12),
+                  top: MediaQuery.of(context).padding.top + (_showGeopositionBanner ? 104 : 16),
                   left: 16,
                   child: ManeuverTopHud(
                     step: currentStep,
@@ -1633,22 +1305,20 @@ class _DrivingScreenState extends State<DrivingScreen>
                   ),
                 ),
 
-              // ─── 5. Top-Right Dual Speedometer Gauge (Image 2) ─────
+              // ─── 5. Top-Right Speedometer HUD ──────────────────────
               Positioned(
-                top: MediaQuery.of(context).padding.top + (_showGeopositionBanner ? 84 : 12),
+                top: MediaQuery.of(context).padding.top + (_showGeopositionBanner ? 104 : 16),
                 right: 16,
                 child: SpeedometerTopHud(
                   currentSpeed: carSpeed,
-                  speedLimit: _speedLimitKmh,
                   isDark: _isDarkStyleActive,
-                  onTap: _showSpeedLimitDialog,
                 ),
               ),
 
               // ─── 6. Lane Guidance Overlay on Road (Image 1) ────────
               if (_activeRoute != null)
                 Positioned(
-                  top: MediaQuery.of(context).padding.top + (_showGeopositionBanner ? 154 : 82),
+                  top: MediaQuery.of(context).padding.top + (_showGeopositionBanner ? 174 : 86),
                   left: 16,
                   child: LaneGuidanceOverlay(
                     laneCount: 3,
@@ -1656,13 +1326,12 @@ class _DrivingScreenState extends State<DrivingScreen>
                         ? 0
                         : (currentStep?.maneuver == ManeuverType.turnRight ? 2 : 1),
                     hasTrafficLight: true,
-                    zoneBadge: '${_speedLimitKmh.toInt()}',
                   ),
                 ),
 
               // ─── 7. Right Vertical Floating Map Dock (Images 1 & 2) ─
               Positioned(
-                top: MediaQuery.of(context).padding.top + (_showGeopositionBanner ? 160 : 88),
+                top: MediaQuery.of(context).padding.top + (_showGeopositionBanner ? 180 : 92),
                 right: 16,
                 child: FloatingMapDock(
                   isDark: _isDarkStyleActive,
@@ -1670,7 +1339,6 @@ class _DrivingScreenState extends State<DrivingScreen>
                   isCameraLocked: _isCameraFollowLocked,
                   onZoomIn: _zoomIn,
                   onZoomOut: _zoomOut,
-                  onReportHazard: _reportHazard,
                   onToggleTheme: _toggleDayNightTheme,
                   onToggle3D: () => _toggle3DMode(provider),
                   onResetCompass: () => _resetCompassNorth(provider),
@@ -1678,16 +1346,7 @@ class _DrivingScreenState extends State<DrivingScreen>
                 ),
               ),
 
-              // ─── 8. Warning Overlay (Active Hazards) ──────────────
-              if (provider.activeAlerts.isNotEmpty && _radarRangeMeters > 0)
-                Positioned(
-                  bottom: 96,
-                  left: 16,
-                  right: 16,
-                  child: WarningOverlay(alerts: provider.activeAlerts),
-                ),
-
-              // ─── 9. Floating Bottom Capsule Pill Bar & Route Sheet ───
+              // ─── 8. Floating Bottom Capsule Pill Bar & Route Sheet ───
               Positioned(
                 bottom: 24,
                 left: 0,
@@ -1697,8 +1356,13 @@ class _DrivingScreenState extends State<DrivingScreen>
                   activeRoute: _activeRoute,
                   previewDestination: _droppedPinDestination,
                   currentSpeed: carSpeed,
-                  nearbyCount: _radarRangeMeters > 0 ? provider.nearbyVehicles.length : 0,
-                  isConnected: provider.isConnected,
+                  nearbyCount: _radarRangeMeters > 0
+                      ? provider.nearbyVehicles
+                          .where((v) =>
+                              _distanceBetween(carPos.latitude, carPos.longitude, v.lat, v.lng) <=
+                              _radarRangeMeters)
+                          .length
+                      : 0,
                   onConnectionTap: () => _handleConnectionTap(provider),
                   onSearchTap: () => _showDestinationPicker(provider),
                   onStartNavigation: () {
@@ -1709,6 +1373,7 @@ class _DrivingScreenState extends State<DrivingScreen>
                     }
                   },
                   onCancelNavigation: _cancelNavigation,
+                  onDismissPreview: () => setState(() => _droppedPinDestination = null),
                   onStepByStepTap: _showStepByStepSheet,
                   onFilterTap: _showMapLayerSheet,
                   onRadarRangeTap: _openRadarRangeDialog,
@@ -1717,6 +1382,15 @@ class _DrivingScreenState extends State<DrivingScreen>
                   onShareTap: () => _handleShareLocation(provider),
                 ),
               ),
+
+              // ─── 9. Critical Hazard Warning Overlay (Always on Top Layer) ──
+              if (provider.activeAlerts.isNotEmpty && _radarRangeMeters > 0)
+                Positioned(
+                  bottom: _droppedPinDestination != null ? 390 : 96,
+                  left: 16,
+                  right: 16,
+                  child: WarningOverlay(alerts: provider.activeAlerts),
+                ),
             ],
           ),
         );

@@ -6,7 +6,6 @@
 // - Real road-network routing snapped pixel-perfectly to actual streets using
 //   Google Directions API (matches Google Maps road vectors 100%).
 // - Dynamic turn maneuvers (turns, roundabouts, highway ramps, forks).
-// - Automatic road speed-limit detection for safety zones (college, school, highway).
 
 import 'dart:convert';
 import 'dart:io';
@@ -512,62 +511,6 @@ class RouteService {
     } catch (_) {}
 
     return _fallbackRoute(origin: origin, destination: destination);
-  }
-
-  /// Automatically designates road speed limits based on road classification,
-  /// educational/hospital safety zones, and highway standards.
-  static double getDesignatedSpeedLimit(String? roadName) {
-    if (roadName == null || roadName.trim().isEmpty) return 50.0;
-    final r = roadName.toLowerCase();
-
-    // 1. School / College / Campus / Hospital / Religious institution safety zone: 30 km/h
-    if (r.contains('college') ||
-        r.contains('school') ||
-        r.contains('campus') ||
-        r.contains('hospital') ||
-        r.contains('medical') ||
-        r.contains('university') ||
-        r.contains('church') ||
-        r.contains('temple') ||
-        r.contains('mosque') ||
-        r.contains('vidyalaya') ||
-        r.contains('mace')) {
-      return 30.0;
-    }
-
-    // 2. National Highways / Expressways: 80 km/h
-    if (r.contains('expressway') ||
-        r.startsWith('nh ') ||
-        r.contains(' nh') ||
-        r.contains('national highway') ||
-        r.contains('dhanushkodi')) {
-      return 80.0;
-    }
-
-    // 3. State Highways / Major Bypasses / Arterials: 70 km/h
-    if (r.startsWith('sh ') ||
-        r.contains(' sh') ||
-        r.contains('state highway') ||
-        r.contains('highway') ||
-        r.contains('bypass') ||
-        r.contains('ring road')) {
-      return 70.0;
-    }
-
-    // 4. Pocket roads / Residential lanes / Cross roads / Colony: 40 km/h
-    if (r.contains('pocket') ||
-        r.contains('cross') ||
-        r.contains('lane') ||
-        r.contains('residential') ||
-        r.contains('colony') ||
-        r.contains('nagar') ||
-        r.contains('ward') ||
-        r.contains('padi')) {
-      return 40.0;
-    }
-
-    // 5. Default standard urban / city road speed limit: 50 km/h
-    return 50.0;
   }
 
   /// Decodes Google Maps Encoded Polyline into LatLng points.

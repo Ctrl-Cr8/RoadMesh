@@ -23,8 +23,8 @@ const log = createLogger('CollisionPredictor');
 
 // ─── Thresholds ────────────────────────────────────────────────────────────
 
-const RED_DISTANCE_METERS = 30;      // Immediate danger
-const YELLOW_DISTANCE_METERS = 80;   // Caution zone
+const RED_DISTANCE_METERS = 15;      // Immediate danger — cars nearly touching
+const YELLOW_DISTANCE_METERS = 20;   // Close proximity warning zone
 const MIN_SPEED_KMH = 5;            // Ignore nearly-stationary vehicles
 const TIME_STEPS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]; // seconds to project
 

@@ -17,7 +17,7 @@ class FloatingMapDock extends StatelessWidget {
   final bool isCameraLocked;
   final VoidCallback onZoomIn;
   final VoidCallback onZoomOut;
-  final VoidCallback onReportHazard;
+  final VoidCallback? onReportHazard;
   final VoidCallback onToggleTheme;
   final VoidCallback onToggle3D;
   final VoidCallback onResetCompass;
@@ -30,7 +30,7 @@ class FloatingMapDock extends StatelessWidget {
     required this.isCameraLocked,
     required this.onZoomIn,
     required this.onZoomOut,
-    required this.onReportHazard,
+    this.onReportHazard,
     required this.onToggleTheme,
     required this.onToggle3D,
     required this.onResetCompass,
@@ -71,17 +71,6 @@ class FloatingMapDock extends StatelessWidget {
               ),
             ],
           ),
-        ),
-        const SizedBox(height: 10),
-
-        // 2. Hazard Report Button
-        _StandaloneDockButton(
-          bgColor: bgColor,
-          borderColor: borderColor,
-          isDark: isDark,
-          icon: Icons.add_comment_rounded,
-          iconColor: iconColor,
-          onTap: onReportHazard,
         ),
         const SizedBox(height: 10),
 

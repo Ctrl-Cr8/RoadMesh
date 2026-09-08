@@ -42,6 +42,11 @@
 
                 <!-- Action Controls -->
                 <div class="nav-actions">
+                    <button id="btn-switch-backend" class="btn-ghost" title="Switch backend server (Localhost / Render Cloud)">
+                        <i data-lucide="server" class="btn-icon-svg"></i>
+                        <span id="backend-target-label">Local</span>
+                    </button>
+
                     <button id="btn-focus-devices" class="btn-ghost" title="Center map on active vehicles">
                         <i data-lucide="crosshair" class="btn-icon-svg"></i>
                         <span>Focus</span>
@@ -84,21 +89,21 @@
             <div class="metric-separator"></div>
 
             <div class="metric-item">
-                <span class="metric-eyebrow">V2I ROADSIDE BEACON</span>
+                <span class="metric-eyebrow">SPATIAL RADAR RADIUS</span>
                 <div class="metric-row">
-                    <span class="rsu-beacon-dot" id="arduino-led-indicator"></span>
-                    <span class="metric-value-text" id="rsu-status-val">Monitoring</span>
+                    <span class="metric-number">500</span>
+                    <span class="metric-unit">meters</span>
                 </div>
-                <span class="metric-sub" id="arduino-status-sub">Arduino Pin 2 Active</span>
             </div>
 
             <div class="metric-separator"></div>
 
-            <div class="metric-item action-item">
-                <button id="btn-trigger-arduino" class="btn-secondary-action">
-                    <i data-lucide="radio" class="btn-icon-svg"></i>
-                    <span>Simulate Crossing</span>
-                </button>
+            <div class="metric-item">
+                <span class="metric-eyebrow">PREDICTION HORIZON</span>
+                <div class="metric-row">
+                    <span class="metric-number">10</span>
+                    <span class="metric-unit">sec TTC</span>
+                </div>
             </div>
         </section>
 
@@ -115,7 +120,6 @@
                         <div class="map-legend-bar">
                             <span class="legend-pill"><span class="legend-dot normal"></span>Vehicle</span>
                             <span class="legend-pill"><span class="legend-dot alert"></span>Risk</span>
-                            <span class="legend-pill"><span class="legend-dot beacon"></span>V2I Beacon</span>
                         </div>
                     </div>
                     <div id="map" class="map-canvas"></div>

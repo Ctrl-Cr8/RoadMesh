@@ -17,7 +17,7 @@ class LaneGuidanceOverlay extends StatelessWidget {
     this.laneCount = 3,
     this.recommendedLane = 1,
     this.hasTrafficLight = true,
-    this.zoneBadge = '8',
+    this.zoneBadge,
   });
 
   @override

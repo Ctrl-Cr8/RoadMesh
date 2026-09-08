@@ -50,98 +50,6 @@ class VehicleMarkerPainter {
     return descriptor;
   }
 
-  /// Renders road-anchored speed camera callout badge matching Image 2
-  static Future<BitmapDescriptor> getSpeedCameraMarker({
-    int speedLimit = 100,
-    String note = 'You often skip it • Stay alert!',
-  }) async {
-    const key = 'speed_camera_marker';
-    if (_cache.containsKey(key)) return _cache[key]!;
-
-    const double width = 160.0;
-    const double height = 75.0;
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder, const Rect.fromLTWH(0, 0, width, height));
-
-    // 1. Red camera bubble pill at top
-    final bubbleRect = RRect.fromRectAndRadius(
-      const Rect.fromLTWH(42, 4, 76, 32),
-      const Radius.circular(16),
-    );
-    final bubblePaint = Paint()..color = const Color(0xFFD50000);
-    canvas.drawRRect(bubbleRect, bubblePaint);
-
-    // Camera Icon (white circle + dot)
-    canvas.drawCircle(const Offset(58, 20), 7, Paint()..color = Colors.white);
-    canvas.drawCircle(const Offset(58, 20), 4, Paint()..color = const Color(0xFFD50000));
-
-    // Speed limit text inside red bubble
-    final speedSpan = TextSpan(
-      text: '$speedLimit',
-      style: const TextStyle(
-        color: Colors.white,
-        fontSize: 14,
-        fontWeight: FontWeight.w900,
-        fontFamily: 'Inter',
-      ),
-    );
-    final speedPainter = TextPainter(
-      text: speedSpan,
-      textDirection: TextDirection.ltr,
-    )..layout();
-    speedPainter.paint(canvas, const Offset(72, 11));
-
-    // Little triangular pointer pointing down
-    final pointer = Path()
-      ..moveTo(76, 36)
-      ..lineTo(84, 36)
-      ..lineTo(80, 42)
-      ..close();
-    canvas.drawPath(pointer, bubblePaint);
-
-    // 2. Note text underneath: "You often skip it • Stay alert!"
-    final noteSpan = TextSpan(
-      text: note,
-      style: const TextStyle(
-        color: Colors.white,
-        fontSize: 9.5,
-        fontWeight: FontWeight.w700,
-        fontFamily: 'Inter',
-        shadows: [
-          Shadow(color: Colors.black, blurRadius: 4, offset: Offset(0, 1)),
-        ],
-      ),
-    );
-    final notePainter = TextPainter(
-      text: noteSpan,
-      textDirection: TextDirection.ltr,
-      maxLines: 1,
-    )..layout(maxWidth: width);
-    final noteOffset = Offset((width - notePainter.width) / 2, 46);
-
-    // Translucent dark pill backing for note
-    final noteBgRect = RRect.fromRectAndRadius(
-      Rect.fromCenter(
-        center: Offset(width / 2, 53),
-        width: notePainter.width + 12,
-        height: 18,
-      ),
-      const Radius.circular(9),
-    );
-    canvas.drawRRect(
-      noteBgRect,
-      Paint()..color = Colors.black.withValues(alpha: 0.65),
-    );
-    notePainter.paint(canvas, noteOffset);
-
-    final picture = recorder.endRecording();
-    final img = await picture.toImage(width.toInt(), height.toInt());
-    final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
-    final descriptor = BitmapDescriptor.bytes(byteData!.buffer.asUint8List());
-    _cache[key] = descriptor;
-    return descriptor;
-  }
-
   /// Renders circular red radar hazard ripples matching Image 1
   static Future<BitmapDescriptor> getHazardRippleMarker() async {
     const key = 'hazard_ripple_marker';
@@ -196,31 +104,37 @@ class VehicleMarkerPainter {
     required RiskLevel riskLevel,
     required bool isEgo,
   }) async {
-    // Proportional, lane-accurate canvas size (88px for Ego 3D Car, 44px for nearby)
-    final double canvasSize = isEgo ? 88.0 : 44.0;
+    // Both ego and nearby vehicles render on the exact same 88px canvas at 0.545 scale
+    // resulting in identical 48px bitmaps so two side-by-side cars in adjacent lanes
+    // appear equal, sharp, and lane-proportional without shrinking the nearby car.
+    const double drawSize = 88.0;
+    const double kScale = 0.545; // 88 * 0.545 = ~48px output bitmap
+    final int outputPx = (drawSize * kScale).round();
+
     final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, canvasSize, canvasSize));
-    final center = Offset(canvasSize / 2, canvasSize / 2);
+    final canvas = Canvas(recorder, const Rect.fromLTWH(0, 0, drawSize, drawSize));
+    canvas.scale(kScale, kScale);
+    const center = Offset(drawSize / 2, drawSize / 2);
 
     final themeColor = _getVehicleThemeColor(type);
     final alertColor = _getAlertColor(riskLevel, themeColor);
 
-    if (isEgo) {
-      if (type == VehicleType.car || type == VehicleType.unknown) {
-        _draw3DMetallicSedan(canvas, center);
-      } else {
-        _drawEgoCleanVehicle(canvas, center, type);
-      }
+    if (type == VehicleType.car || type == VehicleType.unknown) {
+      _draw3DMetallicSedan(canvas, center, risk: riskLevel, isEgo: isEgo);
     } else {
-      // Nearby mesh vehicles
-      _drawNearbyVehicle(canvas, center, type, riskLevel, alertColor);
+      if (isEgo) {
+        _drawEgoCleanVehicle(canvas, center, type);
+      } else {
+        _drawNearbyVehicle(canvas, center, type, riskLevel, alertColor);
+      }
     }
 
     final picture = recorder.endRecording();
-    final img = await picture.toImage(canvasSize.toInt(), canvasSize.toInt());
+    final img = await picture.toImage(outputPx, outputPx);
     final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
     return BitmapDescriptor.bytes(byteData!.buffer.asUint8List());
   }
+
 
   // ─── Color Resolvers ────────────────────────────────────────────────────────
 
@@ -258,10 +172,38 @@ class VehicleMarkerPainter {
     }
   }
 
-  // ─── 3D Realistic Metallic Blue Car (Image 1) ──────────────────────────────
+  // ─── 3D Realistic Metallic Car (Image 1) ────────────────────────────────────
 
-  /// Renders a photorealistic 3D metallic blue sedan directly on the map matching Image 1
-  static void _draw3DMetallicSedan(Canvas canvas, Offset c) {
+  /// Renders a photorealistic 3D metallic sedan directly on the map matching Image 1.
+  /// Supports both ego driver and peer vehicles with risk-responsive shaders and halos.
+  static void _draw3DMetallicSedan(
+    Canvas canvas,
+    Offset c, {
+    RiskLevel risk = RiskLevel.green,
+    bool isEgo = true,
+  }) {
+    // Proximity alert halo for peer vehicles
+    if (!isEgo && risk != RiskLevel.green) {
+      final haloColor = risk == RiskLevel.red
+          ? const Color(0xFFEF4444)
+          : const Color(0xFFF59E0B);
+      canvas.drawCircle(
+        c,
+        42.0,
+        Paint()
+          ..color = haloColor.withValues(alpha: 0.30)
+          ..style = PaintingStyle.fill,
+      );
+      canvas.drawCircle(
+        c,
+        42.0,
+        Paint()
+          ..color = haloColor
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.5,
+      );
+    }
+
     // 1. Soft Realistic Ground Drop Shadow on Asphalt
     final shadowRRect = RRect.fromRectAndRadius(
       Rect.fromCenter(center: Offset(c.dx, c.dy + 3.0), width: 35.0, height: 68.0),
@@ -274,8 +216,48 @@ class VehicleMarkerPainter {
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5.0),
     );
 
+    // Color gradient configuration based on ego / peer / risk
+    List<Color> gradientColors;
+    Color mirrorColor;
+
+    if (risk == RiskLevel.red) {
+      gradientColors = const [
+        Color(0xFF7F1D1D), // deep dark red
+        Color(0xFFDC2626), // vivid red
+        Color(0xFFF87171), // highlight red
+        Color(0xFF991B1B), // rich red
+      ];
+      mirrorColor = const Color(0xFFB91C1C);
+    } else if (risk == RiskLevel.yellow) {
+      gradientColors = const [
+        Color(0xFF78350F), // deep amber shadow
+        Color(0xFFD97706), // rich amber
+        Color(0xFFFCD34D), // bright gold spine
+        Color(0xFFB45309), // amber body
+      ];
+      mirrorColor = const Color(0xFFB45309);
+    } else if (!isEgo) {
+      // Peer green car: crisp cyan/sky metallic
+      gradientColors = const [
+        Color(0xFF0369A1), // deep sapphire edge
+        Color(0xFF0284C7), // electric cyan-blue
+        Color(0xFF38BDF8), // bright gloss spine
+        Color(0xFF075985), // ocean blue body
+      ];
+      mirrorColor = const Color(0xFF0369A1);
+    } else {
+      // Ego car: iconic metallic sports blue
+      gradientColors = const [
+        Color(0xFF1E3A8A), // deep sapphire edge shadow
+        Color(0xFF2563EB), // rich metallic blue
+        Color(0xFF3B82F6), // bright gloss highlight spine
+        Color(0xFF1D4ED8), // royal blue right body
+      ];
+      mirrorColor = const Color(0xFF1D4ED8);
+    }
+
     // 2. Aerodynamic Side Wing Mirrors
-    final mirrorPaint = Paint()..color = const Color(0xFF1D4ED8);
+    final mirrorPaint = Paint()..color = mirrorColor;
     // Left mirror
     canvas.drawRRect(
       RRect.fromRectAndRadius(
@@ -293,7 +275,7 @@ class VehicleMarkerPainter {
       mirrorPaint,
     );
 
-    // 3. Main Streamlined Metallic Blue Car Body Shell
+    // 3. Main Streamlined Metallic Car Body Shell
     final bodyPath = Path();
     // Front bumper / nose (rounded sleek curve)
     bodyPath.moveTo(c.dx - 11.0, c.dy - 30.0);
@@ -314,17 +296,12 @@ class VehicleMarkerPainter {
     bodyPath.quadraticBezierTo(c.dx - 16.0, c.dy - 26.0, c.dx - 11.0, c.dy - 30.0);
     bodyPath.close();
 
-    // Metallic Blue Shader (Matching the vibrant sports blue sedan in Image 1)
+    // Metallic Shader
     final bodyPaint = Paint()
       ..shader = ui.Gradient.linear(
         Offset(c.dx - 17.0, c.dy),
         Offset(c.dx + 17.0, c.dy),
-        const [
-          Color(0xFF1E3A8A), // deep sapphire edge shadow
-          Color(0xFF2563EB), // rich metallic blue
-          Color(0xFF3B82F6), // bright gloss highlight spine
-          Color(0xFF1D4ED8), // royal blue right body
-        ],
+        gradientColors,
         const [0.0, 0.35, 0.72, 1.0],
       );
     canvas.drawPath(bodyPath, bodyPaint);
@@ -469,72 +446,82 @@ class VehicleMarkerPainter {
     RiskLevel risk,
     Color alertColor,
   ) {
+    if (type == VehicleType.car || type == VehicleType.unknown) {
+      _draw3DMetallicSedan(canvas, center, risk: risk, isEgo: false);
+      return;
+    }
+
     final isAlert = risk != RiskLevel.green;
 
-    // Contact shadow
+    // Contact shadow for other vehicle types
     canvas.drawCircle(
-      Offset(center.dx, center.dy + 1.5),
-      12.0,
+      Offset(center.dx, center.dy + 2.5),
+      22.0,
       Paint()
         ..color = Colors.black.withValues(alpha: 0.25)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.0),
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4.0),
     );
 
     // If collision alert is active, draw alert halo
     if (isAlert) {
       canvas.drawCircle(
         center,
-        17.0,
+        32.0,
         Paint()
-          ..color = alertColor.withValues(alpha: 0.35)
+          ..color = alertColor.withValues(alpha: 0.30)
           ..style = PaintingStyle.fill,
       );
       canvas.drawCircle(
         center,
-        17.0,
+        32.0,
         Paint()
           ..color = alertColor
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.0,
+          ..strokeWidth = 2.5,
       );
     }
 
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    canvas.scale(1.7, 1.7);
+    const localCenter = Offset.zero;
+
     switch (type) {
       case VehicleType.autoRickshaw:
-        _drawAutoRickshaw(canvas, center);
+        _drawAutoRickshaw(canvas, localCenter);
         break;
       case VehicleType.motorcycle:
-        _drawMotorcycle(canvas, center);
+        _drawMotorcycle(canvas, localCenter);
+        break;
+      case VehicleType.bus:
+        _drawBus(canvas, localCenter);
+        break;
+      case VehicleType.truck:
+        _drawTruck(canvas, localCenter);
+        break;
+      case VehicleType.ambulance:
+        _drawAmbulance(canvas, localCenter);
+        break;
+      case VehicleType.bicycle:
+        _drawBicycle(canvas, localCenter);
+        break;
+      case VehicleType.pedestrian:
+        _drawPedestrian(canvas, localCenter);
         break;
       case VehicleType.car:
       case VehicleType.unknown:
-        _drawCar(canvas, center, const Color(0xFF2563EB));
-        break;
-      case VehicleType.bus:
-        _drawBus(canvas, center);
-        break;
-      case VehicleType.truck:
-        _drawTruck(canvas, center);
-        break;
-      case VehicleType.ambulance:
-        _drawAmbulance(canvas, center);
-        break;
-      case VehicleType.bicycle:
-        _drawBicycle(canvas, center);
-        break;
-      case VehicleType.pedestrian:
-        _drawPedestrian(canvas, center);
         break;
     }
 
     if (isAlert) {
       final tipPath = Path()
-        ..moveTo(center.dx, center.dy - 20)
-        ..lineTo(center.dx + 4, center.dy - 15)
-        ..lineTo(center.dx - 4, center.dy - 15)
+        ..moveTo(localCenter.dx, localCenter.dy - 20)
+        ..lineTo(localCenter.dx + 4, localCenter.dy - 15)
+        ..lineTo(localCenter.dx - 4, localCenter.dy - 15)
         ..close();
       canvas.drawPath(tipPath, Paint()..color = alertColor);
     }
+    canvas.restore();
   }
 
   // ─── 1. AUTO RICKSHAW (3-Wheeler) ──────────────────────────────────────────
@@ -647,6 +634,7 @@ class VehicleMarkerPainter {
 
   // ─── 3. CAR / TAXI ─────────────────────────────────────────────────────────
   // Sleek compact sedan: windshield, roof, side mirrors, headlights.
+  // ignore: unused_element
   static void _drawCar(Canvas canvas, Offset c, Color color) {
     // Car body chassis
     final bodyRect = Rect.fromCenter(center: c, width: 10.0, height: 18.0);

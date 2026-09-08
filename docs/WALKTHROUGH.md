@@ -28,7 +28,6 @@ A complete **100% Smartphone-Based** Cooperative Vehicle Awareness and V2X Platf
 
 ### 3. Tactical Geospatial Admin Dashboard
 - [dashboard.js](roadmesh-server/src/dashboard/dashboard.js) — Real-time interactive Leaflet map, mobile device telemetry inspector, dynamic GPS framing, and alert feed
-- [gateway.js](arduino/gateway/gateway.js) — Hardware Roadside Unit (RSU) smart school crossing beacon integration
 
 ---
 

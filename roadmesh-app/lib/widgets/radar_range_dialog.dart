@@ -25,7 +25,7 @@ class _RadarRangeDialogState extends State<RadarRangeDialog> {
   @override
   void initState() {
     super.initState();
-    _selectedRange = widget.currentRange.toDouble().clamp(0.0, 300.0);
+    _selectedRange = widget.currentRange.toDouble().clamp(0.0, 500.0);
   }
 
   @override
@@ -72,7 +72,10 @@ class _RadarRangeDialogState extends State<RadarRangeDialog> {
                   ],
                 ),
                 GestureDetector(
-                  onTap: () => Navigator.pop(context),
+                  onTap: () {
+                    widget.onRangeChanged(_selectedRange.toInt());
+                    Navigator.pop(context);
+                  },
                   child: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 22),
                 ),
               ],
@@ -119,7 +122,7 @@ class _RadarRangeDialogState extends State<RadarRangeDialog> {
 
             const SizedBox(height: 18),
 
-            // Quick Presets
+            // Quick Presets: 0m, 50m, 100m, 200m, 300m, 500m
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -130,12 +133,13 @@ class _RadarRangeDialogState extends State<RadarRangeDialog> {
                 _presetButton(100, '100m'),
                 _presetButton(200, '200m'),
                 _presetButton(300, '300m'),
+                _presetButton(500, '500m'),
               ],
             ),
 
             const SizedBox(height: 18),
 
-            // Slider (0 to 300 meters)
+            // Slider (0 to 500 meters — matches server NEARBY_RADIUS_METERS)
             SliderTheme(
               data: SliderTheme.of(context).copyWith(
                 activeTrackColor: isOff ? const Color(0xFFEF4444) : const Color(0xFF2563EB),
@@ -148,12 +152,13 @@ class _RadarRangeDialogState extends State<RadarRangeDialog> {
               child: Slider(
                 value: _selectedRange,
                 min: 0,
-                max: 300,
-                divisions: 12,
+                max: 500,
+                divisions: 20,
                 onChanged: (val) {
                   setState(() {
                     _selectedRange = val;
                   });
+                  widget.onRangeChanged(val.toInt());
                 },
               ),
             ),
@@ -211,6 +216,7 @@ class _RadarRangeDialogState extends State<RadarRangeDialog> {
         setState(() {
           _selectedRange = value.toDouble();
         });
+        widget.onRangeChanged(value);
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),

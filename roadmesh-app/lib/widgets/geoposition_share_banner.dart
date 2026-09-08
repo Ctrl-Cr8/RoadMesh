@@ -44,10 +44,10 @@ class _GeopositionShareBannerState extends State<GeopositionShareBanner> {
     final lat = widget.latitude;
     final lng = widget.longitude;
     if (lat != null && lng != null) {
-      final googleUrl = 'https://maps.google.com/?q=$lat,$lng';
+      final googleUrl = 'https://www.google.com/maps/search/?api=1&query=$lat,$lng';
       // ignore: deprecated_member_use
       Share.share(
-        '📍 My real-time RoadMesh location:\n$googleUrl',
+        '📍 My real-time RoadMesh location on Google Maps:\n$googleUrl',
         subject: 'RoadMesh Live Geoposition',
       );
       setState(() => _isShared = true);
