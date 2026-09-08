@@ -27,12 +27,10 @@ roadmesh-app/android/local.properties
 roadmesh-app/android/app/build/
 
 
-# ─── PlatformIO ──────────────────────────────────────────────
-roadmesh-node/.pio/
-roadmesh-node/.vscode/
-
 # ─── Environment ─────────────────────────────────────────────
 .env
 .env.local
 *.log
+.*.log
 .roadmesh_pids
+

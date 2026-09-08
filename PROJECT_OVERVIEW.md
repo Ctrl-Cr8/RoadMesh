@@ -11,8 +11,7 @@
    - [3.1 Mobile Client Subsystem (`roadmesh-app`)](#31-mobile-client-subsystem-roadmesh-app)
    - [3.2 Backend Core & Spatial Engine (`roadmesh-server`)](#32-backend-core--spatial-engine-roadmesh-server)
    - [3.3 Tactical Operations Dashboard (`roadmesh-server/src/dashboard`)](#33-tactical-operations-dashboard-roadmesh-serversrcdashboard)
-   - [3.4 V2I Roadside Unit Hardware & Gateway (`arduino`)](#34-v2i-roadside-unit-hardware--gateway-arduino)
-   - [3.5 Orchestration & DevOps (`master.sh`, Docker, Nginx)](#35-orchestration--devops-mastersh-docker-nginx)
+   - [3.4 Orchestration & DevOps (`master.sh`, Docker, Nginx)](#34-orchestration--devops-mastersh-docker-nginx)
 4. [How Components Connect & Communicate (End-to-End Data Flow)](#4-how-components-connect--communicate-end-to-end-data-flow)
    - [4.1 Network Connectivity Topologies](#41-network-connectivity-topologies)
    - [4.2 WebSocket Communication Protocols & Schemas](#42-websocket-communication-protocols--schemas)
@@ -40,7 +39,6 @@ RoadMesh democratizes vehicular safety by utilizing the sensors already present 
 2. **Network**: Sub-millisecond full-duplex WebSockets over 4G/5G, Wi-Fi, or USB-tethered ADB reverse tunnels.
 3. **Edge Spatial Intelligence**: A geohash spatial indexing core that groups vehicles into hierarchical geographic buckets, performing collision predictions up to 10 seconds ahead without computational bottlenecks.
 4. **Multimodal Driver Feedback**: Sub-second alerts utilizing speech synthesis (TTS voice warnings), calibrated haptic vibration cadences, and glassmorphic heads-up display (HUD) visuals.
-5. **V2I Infrastructure Extension**: Inexpensive microcontrollers (Arduino UNO) stationed at pedestrian crosswalks/schools that bridge directly into the mesh.
 
 ---
 
@@ -48,13 +46,11 @@ RoadMesh democratizes vehicular safety by utilizing the sensors already present 
 
 ```mermaid
 flowchart TB
-    subgraph EdgeDevices["📱 Edge Clients & Hardware"]
+    subgraph EdgeDevices["📱 Edge Smartphone Clients"]
         direction LR
-        Phone1["Driver 1: Android/iOS Phone\n(Flutter App - Real GPS & Sensors)"]
-        Phone2["Driver 2: Android/iOS Phone\n(Flutter App - Real GPS & Sensors)"]
-        Arduino["🚸 School Zebra Crossing\n(Arduino UNO RSU Beacon)"]
-        Gateway["Arduino Serial Gateway\n(Node.js USB Bridge)"]
-        Arduino -->|115200 Baud Serial| Gateway
+        Phone1["Driver 1: Android Phone\n(Flutter App - Real GPS & Sensors)"]
+        Phone2["Driver 2: Android Phone\n(Flutter App - Real GPS & Sensors)"]
+        PhoneN["Driver N: Connected Vehicle\n(Mesh Telemetry Node)"]
     end
 
     subgraph NetworkLayer["🌐 Connection / Transport Layer"]
@@ -162,31 +158,18 @@ A dark-mode, high-contrast operational console for traffic management centers, d
 
 ---
 
-### 3.4 V2I Roadside Unit Hardware & Gateway (`arduino`)
-
-Extends vehicle safety to infrastructure (pedestrian zebra crossings, school gates, sharp mountain bends).
-
-* **Microcontroller**: Arduino UNO (ATmega328P) running C++ firmware (`smart_crossing_beacon.ino`).
-* **Pin Assignment**:
-  * `Pin 2 (INPUT_PULLUP)`: Tactile crosswalk push-button for pedestrians.
-  * `Pin 13 (OUTPUT)`: High-intensity roadside warning strobe LED.
-  * `Serial (115200 baud)`: Bi-directional USB communication.
-* **Edge Gateway (`arduino/gateway/gateway.js`)**:
-  * Node.js daemon running on a host computer or Raspberry Pi connected to the Arduino via USB.
-  * Automatically detects the serial port (`/dev/cu.usbmodem*` or `COMx`).
-  * Translates serial button events into standardized RoadMesh `POSITION_UPDATE` JSON packets with `vehicleType: "PEDESTRIAN"`.
-  * Features a fallback keyboard trigger: pressing `[SPACE]` or `[T]` in the terminal triggers the beacon event without physical hardware.
-
----
-
-### 3.5 Orchestration & DevOps (`master.sh`, Docker, Nginx)
+### 3.4 Orchestration & DevOps (`master.sh`, Docker, Nginx)
 
 RoadMesh includes a complete, enterprise-grade orchestration suite:
 
 * **Master Orchestration Script (`master.sh`)**:
   * 600-line Bash automation tool.
   * Verifies the toolchain (Node, npm, Flutter, ADB, Git).
+  * Automated test suite runner (`./master.sh --test`).
   * Automatically identifies the connected physical Android device using ADB.
+  * Executes `adb reverse tcp:3000 tcp:3000` to create a zero-latency USB bridge between phone and computer.
+  * Automatically compiles, installs the APK, grants runtime location/notification permissions, and launches the app.
+  * Spawns the server on port 3000 and opens the dashboard in the default browser.
   * Executes `adb reverse tcp:3000 tcp:3000` to create a zero-latency USB bridge between phone and computer.
   * Automatically compiles, installs the APK, grants runtime location/notification permissions, and launches the app.
   * Spawns the server on port 3000 and opens the dashboard in the default browser.
@@ -320,7 +303,7 @@ Sent exclusively to the vehicles involved in a predicted collision:
 ```
 
 #### 4. `HAZARD_EVENT` (V2I / Client ➔ Server ➔ Broadcast)
-Sent by Arduino Smart Crossing or manual reporting:
+Sent by manual reporting or server scenario injection:
 ```json
 {
   "type": "HAZARD_EVENT",
@@ -468,8 +451,7 @@ stateDiagram-v2
 ```
 Ctrl+Cre8/
 ├── README.md                          # Project overview & quick-start guide
-├── master.sh                          # 🚀 Master orchestrator script (All-in-one runner)
-├── run.sh                             # Alternate multi-platform runner script
+├── master.sh                          # 🚀 Master orchestrator script (All-in-one runner & test suite)
 ├── docker-compose.yml                 # Docker compose specification
 ├── nginx.conf                         # Reverse proxy config for containerized stack
 ├── render.yaml                        # Blueprint for 1-click cloud deploy on Render
@@ -480,12 +462,10 @@ Ctrl+Cre8/
 │   ├── CLOUD_DEPLOYMENT.md            # Render & Vercel production deployment guide
 │   └── DEPLOYMENT.md                  # Local & container setup guide
 │
-├── arduino/                           # Hardware V2I Roadside Unit (RSU) subsystem
-│   ├── smart_crossing_beacon/
-│   │   └── smart_crossing_beacon.ino  # Arduino UNO C++ firmware (pedestrian button + strobe)
-│   └── gateway/
-│       ├── gateway.js                 # Node.js Serial-to-WebSocket bridge
-│       └── package.json               # Gateway dependencies (ws, serialport)
+├── releases/                          # Standalone production releases
+│   ├── roadmesh-v1.0.0.apk            # Built Android release binary
+│   ├── roadmesh-v1.0.0.apk.sha256     # SHA-256 integrity checksum
+│   └── RELEASE_NOTES.md               # Version release changelog
 │
 ├── roadmesh-server/                   # Backend core, spatial engine & web dashboard
 │   ├── package.json                   # Server dependencies (Express, ws, ngeohash, zod, vitest)
@@ -585,13 +565,6 @@ adb reverse tcp:3000 tcp:3000
 cd roadmesh-app
 flutter pub get
 flutter run
-```
-
-#### 5. Run Arduino Hardware Gateway
-```bash
-cd arduino/gateway
-npm install
-node gateway.js
 ```
 
 ---
